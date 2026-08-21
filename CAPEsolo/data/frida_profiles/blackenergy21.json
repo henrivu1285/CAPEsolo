@@ -1,0 +1,87 @@
+{
+  "name": "blackenergy21",
+  "description": "BlackEnergy2.1 compatibility profile for P3.1 with activation-aware CAPEMON synchronization and provenance fixes.",
+  "target": {
+    "name": "rootkit.exe"
+  },
+  "gate": {
+    "mode": "patched_entry",
+    "delta": 2,
+    "expected_hex": "ebfe1f0100",
+    "restore_hex": "e9f9"
+  },
+  "features": {
+    "legacy_int2a": true,
+    "follow_children": true,
+    "follow_injected_targets": true,
+    "private_exec_callers": true,
+    "anti_analysis_mode": "bypass",
+    "child_anti_analysis_mode": "observe",
+    "child_exclude_names": [
+      "werfault.exe",
+      "wermgr.exe",
+      "conhost.exe"
+    ],
+    "injected_exclude_names": [
+      "system",
+      "registry",
+      "smss.exe",
+      "csrss.exe",
+      "wininit.exe",
+      "winlogon.exe",
+      "services.exe",
+      "lsass.exe"
+    ],
+    "sysmon_bridge": true,
+    "frida_injection_fallback": true,
+    "p3_runtime_report": true
+  },
+  "capemon_detect_timeout": 20,
+  "capemon_grace": 8,
+  "child_capemon_detect_timeout": 5,
+  "child_capemon_grace": 0.5,
+  "injection_capemon_detect_timeout": 2,
+  "injection_capemon_grace": 0.25,
+  "injection_min_signals": 2,
+  "injection_signal_window": 5.0,
+  "max_sessions": 16,
+  "attach_retries": 2,
+  "wait_timeout": 120,
+  "sysmon_channel": "Microsoft-Windows-Sysmon/Operational",
+  "sysmon_event_ids": [
+    1,
+    5,
+    8,
+    25
+  ],
+  "sysmon_injected_source_policy": "correlate",
+  "child_wait_for_root_ready": true,
+  "child_root_ready_timeout": 15.0,
+  "sysmon_tampering_init_window": 3.0,
+  "capemon_fallback_delay": 8.0,
+  "schema_version": 3.1,
+  "p3_max_evidence": 5000,
+  "match": {
+    "min_score": 80,
+    "names": [
+      "rootkit.exe"
+    ],
+    "sizes": [
+      76288
+    ],
+    "sha256": [
+      "3f771dc26345179db8ad4979eea3284c416c430022b0b990873b074a9e4fbc57"
+    ],
+    "byte_patterns": [
+      {
+        "offset": 2,
+        "hex": "ebfe1f0100",
+        "score": 55
+      }
+    ],
+    "name_score": 10,
+    "size_score": 20,
+    "sha256_score": 100
+  },
+  "capemon_activation_timeout": 30.0
+}

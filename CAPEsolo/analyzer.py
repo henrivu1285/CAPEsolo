@@ -27,6 +27,7 @@ from urllib.request import urlopen
 
 from lib.api.process import Process
 from lib.common.abstracts import Auxiliary, Package
+from modules.auxiliary import frida_muncher
 from lib.common.constants import (
     CAPEMON32_NAME,
     CAPEMON64_NAME,
