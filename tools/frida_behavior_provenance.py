@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""P3.2.1 behavior provenance hotfix for CAPEsolo report.json.
+"""P3.2.3.14 behavior provenance for CAPEsolo report.json.
 
 P3.2.1 keeps raw CAPEsolo evidence immutable and closes two provenance gaps:
   * confirmed private instrumentation artifacts become address ranges usable by
@@ -19,18 +19,18 @@ import re
 import struct
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 HERE = Path(__file__).resolve().parent
-if str(HERE) not in sys.path:
-    sys.path.insert(0, str(HERE))
+PROJECT_ROOT = HERE.parent
+for search_path in (HERE, PROJECT_ROOT):
+    if str(search_path) not in sys.path:
+        sys.path.insert(0, str(search_path))
 
-try:
-    from p3_run_scope import current_run_pids, load_runtime_for_analysis, select_run_log
-except ImportError:
-    from p3_run_scope_p32 import current_run_pids, load_runtime_for_analysis, select_run_log
+from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION, product_version_for_runtime
+from p3_run_scope import current_run_pids, load_runtime_for_analysis, select_run_log
 
 MONITOR_BASE_RE = re.compile(
     r"(?P<pid>\d+):\s+Monitor initialised:.*?capemon loaded in process\s+(?P=pid)\s+at\s+(?P<base>0x[0-9a-fA-F]+)",
@@ -57,6 +57,11 @@ CAPEMON_TEXT_MARKERS = ("capemon", "capesolo")
 # and no caller/parentcaller overlap with a retained PE payload range.
 THREAD_BRIDGE_MAX_MS = 25.0
 THREAD_BRIDGE_MAX_CALLS = 512
+ATTACH_SELF_READ_MIN_CALLS = 64
+ATTACH_SELF_READ_MAX_SPAN_MS = 1000.0
+ATTACH_WINDOW_PAD_SECONDS = 0.50
+UNHOOK_RESTORE_MIN_FUNCTIONS = 4
+UNHOOK_RESTORE_MAX_SPAN_MS = 100.0
 THREAD_PROPAGATABLE_APIS = {
     "ntreadvirtualmemory", "ntwritevirtualmemory", "ntqueryvirtualmemory",
     "ntqueryinformationprocess", "ntqueryinformationthread", "ntopenthread",
@@ -82,6 +87,10 @@ DUMP_PE_REGION_RE = re.compile(
     r"DumpRegion:\s+Dumped PE image\(s\) from base address\s+(?P<base>0x[0-9a-fA-F]+),\s+size\s+(?P<size>\d+)\s+bytes",
     re.I,
 )
+
+
+LOG_TS_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})")
+P3_LOG_EVENT_RE = re.compile(r"\[P3Evidence\]\s+(\{.*\})\s*$")
 
 
 def _load_json(path: Path) -> dict:
@@ -124,6 +133,27 @@ def _in_range(address: int | None, ranges: list[dict]) -> dict | None:
         except Exception:
             continue
     return None
+
+
+def _dedupe_ranges(ranges: list[dict]) -> tuple[list[dict], int]:
+    """Collapse byte-identical logical ranges without merging real overlaps."""
+    seen = set()
+    output = []
+    for item in ranges:
+        if not isinstance(item, dict):
+            continue
+        key = (
+            parse_address(item.get("base")),
+            parse_address(item.get("end")),
+            str(item.get("path") or "").lower(),
+            str(item.get("source") or "").lower(),
+            str(item.get("artifact_path") or "").lower(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(item)
+    return output, max(0, len(ranges) - len(output))
 
 
 def pe_size_of_image(path: Path) -> int | None:
@@ -416,6 +446,330 @@ def propagate_frida_thread_context(records: list[dict], sample_protected_ranges:
     }
 
 
+def _event_wall_datetime(event: dict, offset_seconds: float = 0.0) -> datetime | None:
+    try:
+        return datetime.fromtimestamp(float(event.get("wall_time"))) + timedelta(
+            seconds=float(offset_seconds or 0.0)
+        )
+    except Exception:
+        return None
+
+
+def _runtime_to_log_wall_offset(scoped_log_text: str) -> float:
+    """Map epoch wall_time evidence to the local timestamps stored by CAPE.
+
+    This keeps offline review correct when reports are moved from a UTC+N guest
+    to a host using another timezone.
+    """
+    offsets = []
+    for line in str(scoped_log_text or "").splitlines():
+        ts_match = LOG_TS_RE.match(line)
+        event_match = P3_LOG_EVENT_RE.search(line)
+        if not ts_match or not event_match:
+            continue
+        try:
+            log_dt = datetime.strptime(ts_match.group(1), "%Y-%m-%d %H:%M:%S,%f")
+            event = json.loads(event_match.group(1))
+            wall_dt = datetime.fromtimestamp(float(event.get("wall_time")))
+        except Exception:
+            continue
+        offsets.append((log_dt - wall_dt).total_seconds())
+        if len(offsets) >= 20:
+            break
+    if not offsets:
+        return 0.0
+    offsets.sort()
+    return float(offsets[len(offsets) // 2])
+
+
+def build_frida_attach_windows(runtime: dict, scoped_log_text: str = "") -> dict[int, list[dict]]:
+    """Build per-PID wall-clock windows from structured attach evidence."""
+    wall_offset = _runtime_to_log_wall_offset(scoped_log_text)
+    events = runtime.get("evidence") if isinstance(runtime.get("evidence"), list) else []
+    starts: dict[tuple[int, int], dict] = {}
+    terminals: dict[tuple[int, int], dict] = {}
+    for event in events:
+        if not isinstance(event, dict) or event.get("pid") is None:
+            continue
+        try:
+            pid = int(event.get("pid"))
+            attempt = int(event.get("attempt") or 1)
+        except Exception:
+            continue
+        kind = str(event.get("kind") or "")
+        key = (pid, attempt)
+        if kind == "frida_attach_start":
+            starts[key] = event
+        elif kind == "frida_attach":
+            terminals[key] = event
+
+    windows: dict[int, list[dict]] = defaultdict(list)
+    for key, start_event in starts.items():
+        pid, attempt = key
+        start = _event_wall_datetime(start_event, wall_offset)
+        if start is None:
+            continue
+        terminal = terminals.get(key)
+        end = _event_wall_datetime(terminal, wall_offset) if terminal else None
+        if end is None or end < start:
+            # No terminal record: use the role-specific bounded attach budget
+            # from the event, never an unbounded analysis-wide window.
+            try:
+                budget = min(20.0, max(0.5, float(start_event.get("timeout") or 8.0)))
+            except Exception:
+                budget = 8.0
+            end = start + timedelta(seconds=budget)
+        end += timedelta(seconds=ATTACH_WINDOW_PAD_SECONDS)
+        windows[pid].append({
+            "attempt": attempt,
+            "start": start,
+            "end": end,
+            "status": terminal.get("status") if isinstance(terminal, dict) else None,
+        })
+    return dict(windows)
+
+
+def _argument_value(call: dict, name: str):
+    wanted = str(name or "").lower()
+    for arg in call.get("arguments") or []:
+        if not isinstance(arg, dict):
+            continue
+        if str(arg.get("name") or "").lower() == wanted:
+            return arg.get("value")
+    return None
+
+
+def _is_self_process_handle(value: Any) -> bool:
+    parsed = parse_address(value)
+    return parsed in {-1, 0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF}
+
+
+def _small_read_size(value: Any) -> bool:
+    parsed = parse_address(value)
+    return parsed is not None and 0 < parsed <= 0x1000
+
+
+def classify_frida_attach_self_read_bursts(
+    records: list[dict],
+    runtime: dict,
+    sample_protected_ranges: list[dict],
+    scoped_log_text: str = "",
+) -> dict:
+    """Classify only high-confidence Frida attach-time self-read bursts.
+
+    Malware may legitimately call ``NtReadVirtualMemory``.  A call is changed
+    only when all of these independent signals agree: a structured Frida attach
+    window for the same PID, an existing strong Frida call anchor in that
+    window, a self-process handle, a small read, a repeated non-sample caller
+    caller/thread pair, and a minimum burst size. Parent return addresses may
+    vary while the bootstrap walks loader structures. No fixed address, sample
+    name or hash is
+    used.
+    """
+    windows = build_frida_attach_windows(runtime, scoped_log_text)
+    if not windows:
+        return {
+            "classified_calls": 0,
+            "bursts": 0,
+            "by_pid": {},
+            "minimum_calls": ATTACH_SELF_READ_MIN_CALLS,
+        }
+
+    def matching_window(pid: int, ts: datetime | None):
+        if ts is None:
+            return None
+        for window in windows.get(pid, []):
+            if window["start"] <= ts <= window["end"]:
+                return window
+        return None
+
+    anchored_windows = set()
+    for record in records:
+        if record.get("provenance") != "framework_frida" or record.get("confidence") != "high":
+            continue
+        try:
+            pid = int(record.get("pid") or 0)
+        except Exception:
+            continue
+        ts = _parse_call_time(record.get("timestamp"))
+        window = matching_window(pid, ts)
+        if window is not None:
+            anchored_windows.add((pid, int(window.get("attempt") or 0)))
+
+    groups: dict[tuple, list[tuple[dict, datetime, dict]]] = defaultdict(list)
+    for record in records:
+        if str(record.get("api") or "").lower() != "ntreadvirtualmemory":
+            continue
+        if record.get("provenance") != "malware_candidate":
+            continue
+        try:
+            pid = int(record.get("pid") or 0)
+        except Exception:
+            continue
+        ts = _parse_call_time(record.get("timestamp"))
+        window = matching_window(pid, ts)
+        if window is None:
+            continue
+        if (pid, int(window.get("attempt") or 0)) not in anchored_windows:
+            continue
+        call = record.get("call") if isinstance(record.get("call"), dict) else {}
+        if not _is_self_process_handle(_argument_value(call, "ProcessHandle")):
+            continue
+        if not _small_read_size(_argument_value(call, "Size")):
+            continue
+        if _protected_by_sample_range(record, sample_protected_ranges):
+            continue
+        key = (
+            pid,
+            int(window.get("attempt") or 0),
+            str(call.get("thread_id") or ""),
+            str(call.get("caller") or "").lower(),
+        )
+        groups[key].append((record, ts, window))
+
+    classified = 0
+    burst_count = 0
+    by_pid = Counter()
+    for key, items in groups.items():
+        if len(items) < ATTACH_SELF_READ_MIN_CALLS:
+            continue
+        times = [item[1] for item in items if item[1] is not None]
+        if not times:
+            continue
+        span_ms = (max(times) - min(times)).total_seconds() * 1000.0
+        if span_ms < 0 or span_ms > ATTACH_SELF_READ_MAX_SPAN_MS:
+            continue
+        pid, attempt, tid, caller = key
+        parentcallers = sorted({
+            str((record.get("call") or {}).get("parentcaller") or "").lower()
+            for record, _ts, _window in items
+        })
+        for record, _ts, _window in items:
+            record["provenance"] = "framework_frida"
+            record["confidence"] = "high"
+            record["filter_from_clean_view"] = True
+            record.setdefault("reasons", []).append({
+                "kind": "frida_attach_self_read_burst",
+                "attempt": attempt,
+                "thread_id": tid,
+                "caller": caller,
+                "parentcaller_count": len(parentcallers),
+                "parentcaller_examples": parentcallers[:8],
+                "burst_calls": len(items),
+                "burst_span_ms": round(span_ms, 3),
+                "rule": "attach_window+frida_anchor+self_handle+small_read+repeated_non_sample_caller_thread",
+            })
+            classified += 1
+            by_pid[pid] += 1
+        burst_count += 1
+
+    return {
+        "classified_calls": classified,
+        "bursts": burst_count,
+        "by_pid": dict(by_pid),
+        "minimum_calls": ATTACH_SELF_READ_MIN_CALLS,
+        "max_span_ms": ATTACH_SELF_READ_MAX_SPAN_MS,
+    }
+
+
+def classify_unhook_restore_bursts(
+    records: list[dict],
+    runtime: dict,
+    scoped_log_text: str = "",
+) -> dict:
+    """Annotate attach-time CAPEMON hook-restoration bursts conservatively.
+
+    CAPEMON emits ``__anomaly__/unhook/restored`` notifications when a short
+    instrumentation transition changes several monitored entry points.  The
+    same notification can also describe malware tampering, so P3.2.3.14 only
+    changes the label to ``framework_possible``.  It deliberately keeps the
+    records in the clean view and requires a structured attach window, the same
+    PID/thread, zero caller addresses, at least four distinct restored
+    functions, and a tightly bounded burst.
+    """
+    windows = build_frida_attach_windows(runtime, scoped_log_text)
+    if not windows:
+        return {
+            "classified_calls": 0,
+            "bursts": 0,
+            "by_pid": {},
+            "minimum_distinct_functions": UNHOOK_RESTORE_MIN_FUNCTIONS,
+            "max_span_ms": UNHOOK_RESTORE_MAX_SPAN_MS,
+        }
+
+    def matching_window(pid: int, ts: datetime | None):
+        if ts is None:
+            return None
+        for window in windows.get(pid, []):
+            if window["start"] <= ts <= window["end"]:
+                return window
+        return None
+
+    groups: dict[tuple[int, int, str], list[tuple[dict, datetime, str]]] = defaultdict(list)
+    for record in records:
+        if record.get("provenance") != "malware_candidate":
+            continue
+        if str(record.get("api") or "").lower() != "__anomaly__":
+            continue
+        call = record.get("call") if isinstance(record.get("call"), dict) else {}
+        if parse_address(call.get("caller")) != 0:
+            continue
+        if parse_address(call.get("parentcaller")) != 0:
+            continue
+        subcategory = str(_argument_value(call, "Subcategory") or "").lower()
+        unhook_type = str(_argument_value(call, "UnhookType") or "").lower()
+        function_name = str(_argument_value(call, "FunctionName") or "").strip()
+        if subcategory != "unhook" or unhook_type != "restored" or not function_name:
+            continue
+        try:
+            pid = int(record.get("pid") or 0)
+        except Exception:
+            continue
+        ts = _parse_call_time(record.get("timestamp"))
+        window = matching_window(pid, ts)
+        if window is None or ts is None:
+            continue
+        key = (pid, int(window.get("attempt") or 0), str(call.get("thread_id") or ""))
+        groups[key].append((record, ts, function_name))
+
+    classified = 0
+    burst_count = 0
+    by_pid = Counter()
+    for (pid, attempt, tid), items in groups.items():
+        functions = sorted({function.lower() for _record, _ts, function in items})
+        if len(functions) < UNHOOK_RESTORE_MIN_FUNCTIONS:
+            continue
+        times = [ts for _record, ts, _function in items]
+        span_ms = (max(times) - min(times)).total_seconds() * 1000.0
+        if span_ms < 0 or span_ms > UNHOOK_RESTORE_MAX_SPAN_MS:
+            continue
+        for record, _ts, _function in items:
+            record["provenance"] = "framework_possible"
+            record["confidence"] = "possible"
+            record["filter_from_clean_view"] = False
+            record.setdefault("possible_reasons", []).append({
+                "kind": "attach_time_unhook_restore_burst",
+                "attempt": attempt,
+                "thread_id": tid,
+                "distinct_functions": len(functions),
+                "function_examples": functions[:12],
+                "burst_calls": len(items),
+                "burst_span_ms": round(span_ms, 3),
+                "rule": "attach_window+same_thread+zero_callers+multi_function_restore_burst",
+            })
+            classified += 1
+            by_pid[pid] += 1
+        burst_count += 1
+
+    return {
+        "classified_calls": classified,
+        "bursts": burst_count,
+        "by_pid": dict(by_pid),
+        "minimum_distinct_functions": UNHOOK_RESTORE_MIN_FUNCTIONS,
+        "max_span_ms": UNHOOK_RESTORE_MAX_SPAN_MS,
+    }
+
+
 def classify_call(call: dict, pid: int, tracked_pids: set[int], frida_ranges: list[dict], capemon_ranges: list[dict], confirmed_private_ranges: list[dict], possible_private_ranges: list[dict]) -> dict:
     caller = parse_address(call.get("caller"))
     parentcaller = parse_address(call.get("parentcaller"))
@@ -480,6 +834,33 @@ def classify_call(call: dict, pid: int, tracked_pids: set[int], frida_ranges: li
     }
 
 
+def _scoped_log_time_bounds(scoped_log: str):
+    stamps = []
+    for line in str(scoped_log or "").splitlines():
+        m = LOG_TS_RE.match(line)
+        if not m:
+            continue
+        try:
+            stamps.append(datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S,%f"))
+        except ValueError:
+            pass
+    if not stamps:
+        return None, None
+    return min(stamps), max(stamps)
+
+
+def _call_in_time_scope(call: dict, start, end, slack_seconds=2.0):
+    if start is None or end is None:
+        return True
+    value = call.get("timestamp")
+    try:
+        ts = datetime.strptime(str(value), "%Y-%m-%d %H:%M:%S,%f")
+    except Exception:
+        return True
+    slack = timedelta(seconds=max(0.0, float(slack_seconds)))
+    return (start - slack) <= ts <= (end + slack)
+
+
 def classify_behavior(
     analysis_dir: Path,
     report_json: Path | None = None,
@@ -498,7 +879,9 @@ def classify_behavior(
     report_path = Path(report_json).resolve() if report_json else choose_report_json(analysis_dir)
     if report_path is None or not report_path.is_file():
         result = {
-            "schema": "capesolo-frida-behavior/3.2.1",
+            "schema": "capesolo-frida-behavior/3.2.3.14",
+            "version": product_version_for_runtime(runtime),
+            "processor_version": PRODUCT_VERSION,
             "run_id": runtime.get("run_id"),
             "available": False,
             "reason": "cape_report_json_not_found",
@@ -522,12 +905,35 @@ def classify_behavior(
     capemon_ranges = build_capemon_ranges(scoped_log, runtime)
     confirmed_private_ranges, possible_private_ranges, retained_pe_ranges = build_private_artifact_ranges(artifact_result, scoped_log)
     main_sample_ranges = build_main_sample_ranges(report)
-    sample_protected_ranges = main_sample_ranges + retained_pe_ranges
+    sample_protected_ranges, protected_duplicates_removed = _dedupe_ranges(
+        main_sample_ranges + retained_pe_ranges
+    )
     tracked_pids = current_run_pids(runtime)
 
     records = []
     behavior = report.get("behavior") if isinstance(report.get("behavior"), dict) else {}
     processes = behavior.get("processes") if isinstance(behavior.get("processes"), list) else []
+    scope_start, scope_end = _scoped_log_time_bounds(scoped_log)
+
+    # CAPE reports can retain calls from multiple attempts and, in some builds,
+    # repeat the same call list under multiple process containers.  Thread IDs
+    # provide a strong ownership signal: only discard a call when its thread is
+    # explicitly owned by another tracked process. Unknown/unlisted threads stay.
+    thread_owners = {}
+    for proc in processes:
+        if not isinstance(proc, dict):
+            continue
+        try:
+            proc_pid = int(proc.get("process_id"))
+        except Exception:
+            continue
+        if tracked_pids and proc_pid not in tracked_pids:
+            continue
+        for tid in proc.get("threads") or []:
+            thread_owners.setdefault(str(tid), set()).add(proc_pid)
+
+    thread_mismatch_removed = 0
+    outside_time_scope_removed = 0
     for proc in processes:
         if not isinstance(proc, dict):
             continue
@@ -543,6 +949,14 @@ def classify_behavior(
         for call in calls:
             if not isinstance(call, dict):
                 continue
+            tid = str(call.get("thread_id") or "")
+            owners = thread_owners.get(tid) or set()
+            if owners and pid not in owners:
+                thread_mismatch_removed += 1
+                continue
+            if not _call_in_time_scope(call, scope_start, scope_end):
+                outside_time_scope_removed += 1
+                continue
             cls = classify_call(call, pid, tracked_pids, frida_ranges, capemon_ranges, confirmed_private_ranges, possible_private_ranges)
             records.append({
                 "pid": pid,
@@ -556,6 +970,10 @@ def classify_behavior(
                 "call": call,
             })
 
+    attach_self_read_bursts = classify_frida_attach_self_read_bursts(
+        records, runtime, sample_protected_ranges, scoped_log
+    )
+    unhook_restore_bursts = classify_unhook_restore_bursts(records, runtime, scoped_log)
     thread_context = propagate_frida_thread_context(records, sample_protected_ranges)
 
     provenance_counts = Counter(r["provenance"] for r in records)
@@ -576,10 +994,22 @@ def classify_behavior(
         "network_framework_calls": len(framework_network),
         "network_candidate_apis": Counter(str(r.get("api") or "<none>") for r in network_candidates).most_common(20),
         "thread_context": thread_context,
+        "attach_self_read_bursts": attach_self_read_bursts,
+        "unhook_restore_bursts": unhook_restore_bursts,
+        "sample_protected_ranges_duplicates_removed": protected_duplicates_removed,
+        "run_scoping": {
+            "thread_mismatch_removed": thread_mismatch_removed,
+            "outside_time_scope_removed": outside_time_scope_removed,
+            "scoped_log_start": scope_start.strftime("%Y-%m-%d %H:%M:%S,%f")[:-3] if scope_start else None,
+            "scoped_log_end": scope_end.strftime("%Y-%m-%d %H:%M:%S,%f")[:-3] if scope_end else None,
+            "thread_owner_entries": len(thread_owners),
+        },
     }
 
     result = {
-        "schema": "capesolo-frida-behavior/3.2.1",
+        "schema": "capesolo-frida-behavior/3.2.3.14",
+        "version": product_version_for_runtime(runtime),
+        "processor_version": PRODUCT_VERSION,
         "run_id": runtime.get("run_id"),
         "available": True,
         "source_report": str(report_path),
@@ -593,9 +1023,13 @@ def classify_behavior(
         "summary": summary,
         "notes": [
             "Raw CAPEsolo report.json is unchanged.",
+            "P3.2.3.14 scopes calls by current-run PIDs, bounded run timestamps, and explicit process-thread ownership when available.",
             "Confirmed high-confidence instrumentation artifacts contribute narrow private address ranges.",
             "Possible instrumentation artifact ranges are annotation-only and stay in the clean view.",
             "Thread-context propagation requires strong Frida anchors on both sides, a short span, a plumbing API, and no retained-PE caller overlap.",
+            "Attach-time NtReadVirtualMemory is filtered only for a large repeated self-read burst with a structured attach window and an independent strong Frida anchor.",
+            "Attach-time multi-function unhook/restored bursts are labeled framework_possible but remain in the clean view.",
+            "Duplicate protected-range metadata is collapsed without merging genuine overlapping ranges.",
             "framework_possible calls remain in the clean view because provenance is not high-confidence.",
             "malware_candidate means associated with an enrolled sample process, not a malicious verdict.",
         ],

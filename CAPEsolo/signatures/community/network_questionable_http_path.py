@@ -60,14 +60,16 @@ class NetworkQuestionableHttpPath(Signature):
     filter_analysistypes = set(["file"])
 
     def find_dir_n_type(self, uri):
-        if any([uri.find(common_dir) for common_dir in common_dirs]) and uri.endswith(common_extensions):
+        if any(common_dir in uri for common_dir in common_dirs) and uri.endswith(common_extensions):
             return True
         return False
 
     def run(self):
         for host in self.results.get("network", {}).get("http", []) or []:
-            if self.find_dir_n_type(host["path"].lower()):
-                self.data.append({"url": host["uri"]})
+            if host.get("signature_eligible") is False:
+                continue
+            if self.find_dir_n_type(host.get("path", "").lower()):
+                self.data.append({"url": host.get("uri", "")})
         if self.data:
             return True
         else:

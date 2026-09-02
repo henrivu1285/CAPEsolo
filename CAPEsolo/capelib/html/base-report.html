@@ -27,6 +27,12 @@
             <a class="nav-link" id="behavior-tab" data-bs-toggle="tab" href="#behavior" role="tab" aria-controls="behavior"
                aria-selected="false">Behavior</a>
         </li>
+        {% if results.mitre_attack %}
+        <li class="nav-item">
+            <a class="nav-link" id="mitre-tab" data-bs-toggle="tab" href="#mitre" role="tab" aria-controls="mitre"
+               aria-selected="false">MITRE ATT&amp;CK</a>
+        </li>
+        {% endif %}
         <li class="nav-item">
             <a class="nav-link" id="dropped-tab" data-bs-toggle="tab" href="#dropped" role="tab" aria-controls="dropped"
                aria-selected="false">Dropped</a>
@@ -39,10 +45,22 @@
             <a class="nav-link" id="payloads-tab" data-bs-toggle="tab" href="#payloads" role="tab" aria-controls="payloads"
                aria-selected="false">Payloads</a>
         </li>
+        {% if has_network %}
+        <li class="nav-item">
+            <a class="nav-link" id="network-tab" data-bs-toggle="tab" href="#network" role="tab" aria-controls="network"
+               aria-selected="false">Network</a>
+        </li>
+        {% endif %}
         {% if debugger %}
         <li class="nav-item">
             <a class="nav-link" id="debugger-tab" data-bs-toggle="tab" href="#debugger" role="tab" aria-controls="debugger"
                aria-selected="false">Debugger</a>
+        </li>
+        {% endif %}
+        {% if results.js_log and results.js_log.exists %}
+        <li class="nav-item">
+            <a class="nav-link" id="js_log-tab" data-bs-toggle="tab" href="#js_log" role="tab" aria-controls="js_log"
+               aria-selected="false">JS Log</a>
         </li>
         {% endif %}
     </ul>

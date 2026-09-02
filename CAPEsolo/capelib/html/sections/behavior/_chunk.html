@@ -13,7 +13,7 @@
     </thead>
     <tbody>
     {% for call in chunk.calls %}
-        <tr class="{{ call.category }}" id="call_{{ call.id }}">
+        <tr class="{{ call.category }}" id="chunk_call_{{ loop.index0 }}_{{ call.id }}">
             {% include "sections/behavior/_api_call.html" %}
         </tr>
     {% endfor %}

@@ -18,6 +18,7 @@ import logging
 import os
 import sys
 import time
+from contextlib import suppress
 from ctypes import windll
 from pathlib import Path
 
@@ -67,6 +68,12 @@ MUTEX_NAME = "solo_mutex"
 
 
 class CapesoloApp(wx.App):
+    def __init__(self, restored=False, *args, **kwargs):
+        # Whether _restore_results() extracted a restore.zip this launch; surfaced in the
+        # status bar once the frame is built.
+        self.restored = restored
+        super().__init__(*args, **kwargs)
+
     def OnInit(self):
         hWnd = windll.kernel32.GetConsoleWindow()
         windll.user32.ShowWindow(hWnd, 6)
@@ -80,18 +87,81 @@ class CapesoloApp(wx.App):
             frameWidth = 710
 
         frame = MainFrame(
-            rootDir=CAPESOLO_ROOT, parent=None, size=wx.Size(frameWidth, frameHeight)
+            rootDir=CAPESOLO_ROOT, parent=None, size=wx.Size(frameWidth, frameHeight),
+            restored=self.restored,
         )
         frameX = int(screenWidth * 0.01)
         frameY = int(screenHeight * 0.02)
         frame.SetPosition(wx.Point(frameX, frameY))
         frame.Show()
+        # The Start panel scrolls vertically only, so a too-narrow frame clips its widest
+        # always-visible row (the bottom action bar) rather than scrolling. Widen the frame if
+        # the initial width does not give the Start panel's content its full width.
+        startTab = frame.startTab
+        chrome = frame.GetSize().width - startTab.GetClientSize().width
+        needed = min(startTab.GetSizer().GetMinSize().width + chrome, screenWidth)
+        if frame.GetSize().width < needed:
+            frame.SetSize(wx.Size(needed, frameHeight))
         return True
+
+
+def _seed_user_config():
+    """Copy the packaged cfg.ini to the user (public) config path if it isn't there yet, so the
+    user has an editable copy. Best-effort: a missing user file is fine (config_paths skips it)."""
+    import shutil
+
+    from CAPEsolo.capelib.config_paths import packaged_config_path, user_config_path
+
+    user = user_config_path()
+    if user.exists():
+        return
+    try:
+        user.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(str(packaged_config_path()), str(user))
+    except OSError:
+        pass
+
+
+def _restore_results():
+    """Restore a preserved analysis into a clean/reverted VM: if a results zip has been dropped at
+    %PUBLIC%\\CAPEsolo\\restore.zip and the analysis directory has no analysis yet, extract it so the
+    tabs read it on startup. Renamed to restore.zip.done afterwards so it restores once. Best-effort
+    - a bad zip or read-only dir must never block startup. Returns True if an analysis was
+    extracted, else False."""
+    import configparser
+    import zipfile
+
+    from CAPEsolo.capelib.config_paths import config_paths, user_config_path
+
+    restore_zip = user_config_path().parent / "restore.zip"
+    if not restore_zip.is_file():
+        return False
+
+    config = configparser.ConfigParser()
+    with suppress(configparser.Error, OSError):
+        config.read([str(p) for p in config_paths()])
+    analysis_dir = Path(
+        config.get("analysis_directory", "analysis", fallback=r"C:\Users\Public\CAPEsolo\analysis")
+    )
+    # Never clobber an existing analysis.
+    if any(analysis_dir.glob("s_*")):
+        return False
+
+    try:
+        analysis_dir.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(str(restore_zip)) as archive:
+            archive.extractall(str(analysis_dir))
+    except Exception:
+        return False
+    with suppress(OSError):
+        restore_zip.rename(restore_zip.with_suffix(".zip.done"))
+    return True
 
 
 def main():
     mutex = acquire_lock()
     try:
+        _seed_user_config()
         parser = argparse.ArgumentParser(description="Capesolo utility functions.")
         parser.add_argument(
             "--update_yara",
@@ -215,7 +285,10 @@ def main():
 
             return 0
 
-        app = CapesoloApp()
+        # GUI-only (headless/update-yara returned above): restore a preserved analysis before the
+        # frame reads the analysis directory.
+        restored = _restore_results()
+        app = CapesoloApp(restored=restored)
         app.MainLoop()
         return 0
     finally:

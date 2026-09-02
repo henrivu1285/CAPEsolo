@@ -14,17 +14,26 @@ digisig = True
 disguise = True
 evtx = False
 human_windows = False
+; Imports the module; JsConsole then starts only when package = nodejs
+js_console = True
 procmon = False
 recentfiles = False
 screenshots_windows = False
+; TLS secrets for decrypting a capture taken outside the guest, read by the Network tab.
+; tlsdump injects capemon into lsass for Schannel; sslkeylogfile covers anything honouring
+; the SSLKEYLOGFILE variable. The analyzer only imports an auxiliary module whose name it
+; finds here, so sslkeylogfile never loaded while this key was absent.
+sslkeylogfile = True
 sysmon_windows = False
-tlsdump = False
+tlsdump = True
 usage = False
 file_pickup = True
 permissions = False
 pre_script = False
 during_script = False
 filecollector = True
+; P3.2.3.4 CAPEMON-first Frida lifecycle/provenance controller.
+frida_muncher = True
 windows_static_route = False
 ; Largest file the analyzer will send to the ResultServer. Bigger files are trimmed when
 ; enable_trim is set and they are PE images, otherwise skipped with a warning.

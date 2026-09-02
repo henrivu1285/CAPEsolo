@@ -23,6 +23,7 @@ const runtimeProfile = {
     name: 'generic',
     processRole: 'root',
     enableLegacyInt2A: false,
+    enableExceptionDiagnostics: false,
     gateMode: 'none',
     antiAnalysisMode: 'observe',
     includePrivateExecCallers: true
@@ -952,7 +953,9 @@ function shouldReportDuplicate(count) {
     );
 }
 
-Process.setExceptionHandler(function(details) {
+let exceptionHandlerInstalled = false;
+
+function handleProcessException(details) {
     const ctx = details.context;
     const pc = contextProgramCounter(ctx, details.address);
 
@@ -996,6 +999,15 @@ Process.setExceptionHandler(function(details) {
             'handler_error',
             e.stack || e.message || String(e)
         );
+    }
+
+    /*
+     * Legacy INT2A recovery may require the handler, but generic crash
+     * diagnostics are independently opt-in.  With diagnostics disabled we do
+     * not inspect, count, symbolize, or report unrelated exceptions.
+     */
+    if (!runtimeProfile.enableExceptionDiagnostics) {
+        return false;
     }
 
     let operation = '';
@@ -1051,7 +1063,47 @@ Process.setExceptionHandler(function(details) {
      * Windows. Diagnostics never invent a new execution path.
      */
     return false;
-});
+}
+
+function installExceptionDiagnostics() {
+    if (exceptionHandlerInstalled) {
+        return;
+    }
+
+    const required = (
+        runtimeProfile.enableExceptionDiagnostics ||
+        runtimeProfile.enableLegacyInt2A
+    );
+
+    if (!required) {
+        report(
+            'CrashDiagnostics',
+            'disabled',
+            'profile=' + runtimeProfile.name +
+            ' role=' + runtimeProfile.processRole
+        );
+        return;
+    }
+
+    try {
+        Process.setExceptionHandler(handleProcessException);
+        exceptionHandlerInstalled = true;
+        report(
+            'CrashDiagnostics',
+            'ready',
+            'profile=' + runtimeProfile.name +
+            ' role=' + runtimeProfile.processRole +
+            ' diagnostics=' + runtimeProfile.enableExceptionDiagnostics +
+            ' legacy_int2a=' + runtimeProfile.enableLegacyInt2A
+        );
+    } catch (e) {
+        report(
+            'CrashDiagnostics',
+            'install_failed',
+            e.stack || e.message || String(e)
+        );
+    }
+}
 
 
 (function hookNtSetInformationProcessDiagnostic() {
@@ -1145,12 +1197,6 @@ Process.setExceptionHandler(function(details) {
 })();
 
 
-report(
-    'CrashDiagnostics',
-    'ready',
-    'P3.1 generic diagnostics installed; profile policy pending'
-);
-
 /*
  * Python sends profile_config after script.load().  FridaHooks=ready is
  * intentionally delayed until configuration arrives, so generic mode cannot
@@ -1162,6 +1208,9 @@ recv(
         runtimeProfile.name = String(message.profile || 'generic');
         runtimeProfile.processRole = String(message.process_role || 'root');
         runtimeProfile.enableLegacyInt2A = Boolean(message.enable_legacy_int2a);
+        runtimeProfile.enableExceptionDiagnostics = Boolean(
+            message.enable_exception_diagnostics
+        );
         runtimeProfile.gateMode = String(message.gate_mode || 'none');
         runtimeProfile.antiAnalysisMode = String(
             message.anti_analysis_mode || 'observe'
@@ -1177,6 +1226,8 @@ recv(
             runtimeProfile.antiAnalysisMode = 'observe';
         }
 
+        installExceptionDiagnostics();
+
         report(
             'Profile',
             'configured',
@@ -1185,6 +1236,7 @@ recv(
             ' arch=' + Process.arch +
             ' anti_analysis=' + runtimeProfile.antiAnalysisMode +
             ' private_exec=' + runtimeProfile.includePrivateExecCallers +
+            ' exception_diagnostics=' + runtimeProfile.enableExceptionDiagnostics +
             ' legacy_int2a=' + runtimeProfile.enableLegacyInt2A +
             ' gate_mode=' + runtimeProfile.gateMode
         );
@@ -1192,7 +1244,7 @@ recv(
         report(
             'FridaHooks',
             'ready',
-            'anti_evasion_p32 loaded; profile=' + runtimeProfile.name +
+            'anti_evasion_p3235 loaded; profile=' + runtimeProfile.name +
             ' role=' + runtimeProfile.processRole +
             ' arch=' + Process.arch +
             ' main=' + main.name +

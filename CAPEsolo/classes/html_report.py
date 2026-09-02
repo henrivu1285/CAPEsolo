@@ -1,5 +1,5 @@
-import codecs
 import os
+import tempfile
 from contextlib import suppress
 from pathlib import Path
 
@@ -37,7 +37,8 @@ class ReportHTML:
 
         desktop = Path(os.path.expanduser("~/Desktop"))
         rootDir = Path(soloRoot)
-        filepath = desktop / "report.html"
+        analysis_path = Path(analysisDir).resolve()
+        filepath = analysis_path / "report.html"
         debuggerPath = Path(analysisDir) / "debugger"
         htmlPath = rootDir / "capelib/html"
         debugger = {}
@@ -64,9 +65,19 @@ class ReportHTML:
                 "proctreetolist": proctreetolist,
             }
         )
+        # Only surface the Network tab when the summary actually has content; results["network"]
+        # is always a dict of (possibly empty) lists, so check for real activity.
+        network = results.get("network") or {}
+        has_network = any(
+            network.get(key)
+            for key in ("hosts", "domains", "dns", "http", "tcp", "udp", "tls", "smtp", "icmp", "irc")
+        )
+
         try:
             tpl = env.get_template("report.html")
-            html = tpl.render(results=results, summary_report=False, debugger=debugger)
+            html = tpl.render(
+                results=results, summary_report=False, debugger=debugger, has_network=has_network
+            )
         except UndefinedError as e:
             return False, e
         except TemplateNotFound as e:
@@ -74,9 +85,29 @@ class ReportHTML:
         except (TemplateSyntaxError, TemplateAssertionError) as e:
             return False, e
 
+        def write_atomic(destination):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            fd, temp_name = tempfile.mkstemp(prefix=f".{destination.name}.", suffix=".tmp", dir=str(destination.parent))
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8", errors="replace") as report:
+                    report.write(html)
+                    report.flush()
+                    os.fsync(report.fileno())
+                os.replace(temp_name, destination)
+            finally:
+                with suppress(FileNotFoundError):
+                    os.unlink(temp_name)
+
         try:
-            with codecs.open(filepath, "w", encoding="utf-8", errors="replace") as report:
-                report.write(html)
-                return True, None
+            # The analysis directory is the canonical, run-scoped artifact.
+            write_atomic(filepath)
         except OSError as e:
             return False, e
+
+        # Preserve the historical Desktop path for the GUI without allowing a
+        # Desktop permission/problem to invalidate the canonical report.
+        desktop_path = desktop / "report.html"
+        if desktop_path.resolve() != filepath:
+            with suppress(OSError):
+                write_atomic(desktop_path)
+        return True, None

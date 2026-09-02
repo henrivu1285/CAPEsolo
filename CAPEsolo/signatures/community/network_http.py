@@ -37,23 +37,26 @@ class NetworkHTTP(Signature):
     def run(self):
         urls = []
         whitelist = [
-            "^http://(crl|ctldl)\.microsoft\.com/.*",
-            "^http://www\.microsoft\.com/.*\.crl$",
-            "^http://ctldl\.windowsupdate\.com/.*",
-            "^http://go\.microsoft\.com/.*",
+            r"^http://(crl|ctldl)\.microsoft\.com/.*",
+            r"^http://www\.microsoft\.com/.*\.crl$",
+            r"^http://ctldl\.windowsupdate\.com/.*",
+            r"^http://go\.microsoft\.com/.*",
         ]
         if "file" in self.results.get("target", {}):
             if "PDF" in self.results["target"]["file"].get("type", "") or self.results["info"]["package"] == "pdf":
-                whitelist.append("^http://.*\.adobe\.com/.*")
+                whitelist.append(r"^http://.*\.adobe\.com/.*")
 
         if "network" in self.results and "http" in self.results["network"]:
             for req in self.results["network"]["http"]:
+                if req.get("signature_eligible") is False:
+                    continue
                 is_whitelisted = False
                 for white in whitelist:
-                    if re.match(white, req["uri"], re.IGNORECASE):
+                    if re.match(white, req.get("uri", ""), re.IGNORECASE):
                         is_whitelisted = True
-                if not is_whitelisted and req["uri"] not in urls:
-                    urls.append(req["uri"])
+                uri = req.get("uri") or ""
+                if not is_whitelisted and uri and uri not in urls:
+                    urls.append(uri)
 
         for url in urls:
             self.data.append({"url": url})

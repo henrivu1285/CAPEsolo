@@ -7,6 +7,7 @@
         <div id="accordionPayloads">
         {% for data in results.payloads %}
             {% set path, file = data.items() | first %}
+            {% set file_scope = 'payload_' ~ loop.index %}
             <div class="card mt-2">
                 <div class="card-header" id="headingPayload{{loop.index}}">
                     <h5 class="mb-0">

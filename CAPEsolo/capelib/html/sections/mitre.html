@@ -1,0 +1,203 @@
+{% set attack = results.mitre_attack %}
+{% set summary = attack.summary or {} %}
+<section class="mitre-report" aria-labelledby="mitre-heading">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div>
+            <h2 id="mitre-heading" class="mb-1">MITRE ATT&amp;CK</h2>
+            <div class="text-secondary">ATT&amp;CK v{{ attack.attack_version }} · {{ attack.domain }} / {{ attack.platform }} · {{ attack.processor_version }} · state-machine mapping</div>
+        </div>
+        <a class="btn btn-outline-light btn-sm" href="https://attack.mitre.org/" target="_blank" rel="noopener noreferrer">Open ATT&amp;CK</a>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number">{{ summary.observed or 0 }}</div><div>Observed</div></div></div></div>
+        <div class="col-6 col-md-3"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number text-warning">{{ summary.candidate or 0 }}</div><div>Candidates</div></div></div></div>
+        <div class="col-6 col-md-3"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number text-secondary">{{ summary.insufficient_evidence or 0 }}</div><div>Insufficient evidence</div></div></div></div>
+        <div class="col-6 col-md-3"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number">{{ summary.tactics or 0 }}</div><div>Tactics covered</div></div></div></div>
+    </div>
+
+    <div class="alert alert-secondary mitre-semantics">
+        <strong>Interpretation:</strong>
+        <span class="badge bg-success">Observed</span> requires successful dynamic evidence or a validated chain.
+        <span class="badge bg-warning text-dark">Candidate</span> has a benign alternative or quality limitation.
+        <span class="badge bg-secondary">Insufficient evidence</span> records a precursor whose required evidence was missing.
+        A catalog entry without an enabled detector is <strong>not evaluated</strong>, not evidence of absence.
+    </div>
+
+    {% set detector_coverage = attack.coverage.detectors if attack.coverage else {} %}
+    {% if detector_coverage.domains %}
+    <div class="card mb-4">
+        <div class="card-header">Catalog and executable detector coverage</div>
+        <div class="table-responsive">
+            <table class="table table-dark table-striped align-middle mb-0">
+                <thead><tr><th>Domain</th><th>Catalog</th><th>Supported</th><th>Partial</th><th>Unsupported by sensor</th><th>Not applicable</th><th>Enabled</th></tr></thead>
+                <tbody>
+                {% for domain, coverage in detector_coverage.domains.items() %}
+                <tr>
+                    <td>{{ domain }}</td><td>{{ coverage.catalog_techniques }}</td>
+                    <td class="text-success">{{ coverage.supported }}</td><td class="text-warning">{{ coverage.partially_supported }}</td>
+                    <td>{{ coverage.unsupported_by_sensor }}</td><td>{{ coverage.not_applicable_to_platform }}</td>
+                    <td>{% if coverage.sensor_domain_enabled %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer text-secondary">{{ detector_coverage.meaning }}</div>
+    </div>
+    {% endif %}
+
+    {% if attack.catalog and attack.catalog.domains %}
+    <div class="card mb-4">
+        <div class="card-header">Official ATT&amp;CK catalog graph</div>
+        <div class="table-responsive">
+            <table class="table table-dark table-striped align-middle mb-0">
+                <thead><tr><th>Domain</th><th>Techniques</th><th>Strategies</th><th>Linked analytics</th><th>All active analytics</th><th>Linked data components</th><th>All active data components</th></tr></thead>
+                <tbody>
+                {% for domain, counts in attack.catalog.domains.items() %}
+                <tr><td>{{ domain }}</td><td>{{ counts.techniques }}</td><td>{{ counts.detection_strategies }}</td>
+                    <td>{{ counts.linked_analytics or counts.analytics }}</td><td>{{ counts.active_analytics or counts.analytics }}</td>
+                    <td>{{ counts.linked_data_components or counts.data_components }}</td><td>{{ counts.active_data_components or counts.data_components }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer text-secondary">“Linked” counts include objects reachable from a technique through Detection Strategy and Analytic relationships. “All active” counts include every non-revoked object in the official source bundle.</div>
+    </div>
+    {% endif %}
+
+    {% if attack.coverage_warnings %}
+    <div class="card border-warning mb-4">
+        <div class="card-header">Coverage and quality warnings</div>
+        <ul class="list-group list-group-flush">
+            {% for warning in attack.coverage_warnings %}
+            <li class="list-group-item">
+                <span class="badge {% if warning.severity == 'error' %}bg-danger{% else %}bg-warning text-dark{% endif %}">{{ warning.code }}</span>
+                {{ warning.message }}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if attack.tactics %}
+    <div class="card mb-4">
+        <div class="card-header">Tactic coverage</div>
+        <div class="card-body">
+            <div class="row g-2">
+                {% for tactic in attack.tactics %}
+                <div class="col-12 col-md-6 col-xl-4">
+                    <div class="mitre-tactic h-100">
+                        <div class="d-flex justify-content-between gap-2">
+                            <strong>{{ tactic.name }}</strong>
+                            <span><span class="badge bg-success">{{ tactic.observed }}</span> <span class="badge bg-warning text-dark">{{ tactic.candidate }}</span></span>
+                        </div>
+                        <div class="mitre-technique-list mono">{{ tactic.techniques | join(', ') }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-header">Technique mappings</div>
+        <div class="table-responsive">
+            <table class="table table-dark table-striped table-hover align-middle mb-0 mitre-table">
+                <thead><tr><th>Status</th><th>Technique</th><th>Tactics</th><th>Confidence</th><th>Evidence and rationale</th></tr></thead>
+                <tbody>
+                {% for mapping in attack.mappings %}
+                    <tr>
+                        <td>
+                            {% if mapping.status == 'observed' %}<span class="badge bg-success">Observed</span>
+                            {% else %}<span class="badge bg-warning text-dark">Candidate</span>{% endif %}
+                        </td>
+                        <td>
+                            <a class="fw-bold" href="{{ mapping.url }}" target="_blank" rel="noopener noreferrer">{{ mapping.id }}</a><br>
+                            {{ mapping.name }}
+                            {% if mapping.normalized_from %}<div class="small text-secondary">Normalized from {{ mapping.normalized_from | join(', ') }}</div>{% endif %}
+                            {% if mapping.platforms %}<div class="small text-secondary">Platforms: {{ mapping.platforms | join(', ') }}</div>{% endif %}
+                        </td>
+                        <td>{% for tactic in mapping.tactics %}<span class="badge bg-dark border me-1">{{ tactic }}</span>{% endfor %}</td>
+                        <td><span class="text-capitalize">{{ mapping.confidence }}</span><div class="small text-secondary">{{ mapping.sources | join(', ') }}</div></td>
+                        <td>
+                            {% for rationale in mapping.rationales %}<div class="mb-1">{{ rationale }}</div>{% endfor %}
+                            {% if mapping.state_machines %}
+                            {% for state in mapping.state_machines %}
+                            <div class="small border rounded p-2 mb-2">
+                                <strong>{{ state.rule_id }}</strong> · trace: <span class="mono">{{ state.state_trace | join(' → ') }}</span>
+                                {% if state.optional_states %}<div>Corroboration: {{ state.optional_states | join(', ') }}</div>{% endif %}
+                                {% if state.missing_steps %}<div class="text-warning">Missing: {{ state.missing_steps | join(', ') }}</div>{% endif %}
+                                {% if state.quality_gates %}<div class="text-secondary">Gates: {{ state.quality_gates | join('; ') }}</div>{% endif %}
+                            </div>
+                            {% endfor %}
+                            {% endif %}
+                            {% if mapping.detection_strategies %}
+                            <details class="mb-2">
+                                <summary>Official Detection Strategies / Analytics</summary>
+                                {% for strategy in mapping.detection_strategies %}
+                                <div class="mt-2"><strong>{{ strategy.id }} — {{ strategy.name }}</strong></div>
+                                {% for analytic in strategy.analytics %}
+                                <div class="ms-3 mt-1"><span class="badge bg-dark border">{{ analytic.id }}</span> {{ analytic.name }}</div>
+                                <div class="ms-3 small text-secondary">{{ analytic.description }}</div>
+                                {% if analytic.data_components %}<div class="ms-3 small mono">Data: {% for component in analytic.data_components %}{{ component.id }} {{ component.name }}{% if not loop.last %}; {% endif %}{% endfor %}</div>{% endif %}
+                                {% endfor %}
+                                {% endfor %}
+                            </details>
+                            {% endif %}
+                            <details>
+                                <summary>{{ mapping.evidence | length }} evidence item{% if mapping.evidence | length != 1 %}s{% endif %}</summary>
+                                <ol class="mitre-evidence mt-2">
+                                {% for evidence in mapping.evidence %}
+                                    <li>
+                                        <span class="badge bg-info text-dark">{{ evidence.source }}</span>
+                                        {% if evidence.pid %}<span class="mono">PID {{ evidence.pid }}</span>{% endif %}
+                                        {% if evidence.process_name %} {{ evidence.process_name }}{% endif %}
+                                        {% if evidence.api %}<span class="mono"> · {{ evidence.api }}</span>{% endif %}
+                                        {% if evidence.timestamp %}<span class="text-secondary"> · {{ evidence.timestamp }}</span>{% endif %}
+                                        <div>{{ evidence.summary }}</div>
+                                        {% if evidence.details %}<div class="small text-secondary mono">{% for key, value in evidence.details.items() %}{{ key }}={{ value }}{% if not loop.last %}; {% endif %}{% endfor %}</div>{% endif %}
+                                    </li>
+                                {% endfor %}
+                                </ol>
+                            </details>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5">No ATT&amp;CK technique was supported by the available evidence. Review coverage warnings before interpreting absence.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if attack.rejected_candidates %}
+    <div class="card border-secondary mb-4">
+        <div class="card-header">Rejected or incomplete hypotheses</div>
+        <div class="card-body">
+            <p class="text-secondary">These rows are retained for auditability and are not counted as observed ATT&amp;CK techniques.</p>
+            {% for item in attack.rejected_candidates %}
+            <details class="mitre-rejected mb-2">
+                <summary><span class="badge bg-secondary">Insufficient evidence</span> <strong>{{ item.id }} — {{ item.name }}</strong></summary>
+                <div class="mt-2">{{ item.rationale }}</div>
+                {% if item.state_machine %}<div class="small text-secondary">Trace: {{ item.state_machine.state_trace | join(' → ') }}{% if item.state_machine.missing_steps %}; missing: {{ item.state_machine.missing_steps | join(', ') }}{% endif %}</div>{% endif %}
+                {% for evidence in item.evidence %}<div class="small text-secondary mono">{{ evidence.summary }}</div>{% endfor %}
+            </details>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if attack.coverage %}
+    <details class="card mb-4">
+        <summary class="card-header">Telemetry coverage</summary>
+        <div class="card-body">
+            <pre class="mb-0">Behavior: {{ attack.coverage.behavior }}
+Signatures: {{ attack.coverage.signatures }}
+Behavior chains: {{ attack.coverage.behavior_chains }}
+Network: {{ attack.coverage.network }}</pre>
+        </div>
+    </details>
+    {% endif %}
+</section>

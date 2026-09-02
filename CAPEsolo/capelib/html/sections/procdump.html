@@ -6,6 +6,7 @@
     {% if results.procdump %}
         <div id="accordionProcDumps">
         {% for file in results.procdump %}
+            {% set file_scope = 'procdump_' ~ loop.index %}
             <div class="card mt-2">
                 <div class="card-header" id="headingProcDump{{loop.index}}">
                     <h5 class="mb-0">

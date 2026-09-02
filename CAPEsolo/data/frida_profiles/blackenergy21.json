@@ -1,6 +1,6 @@
 {
   "name": "blackenergy21",
-  "description": "BlackEnergy2.1 compatibility profile for P3.1 with activation-aware CAPEMON synchronization and provenance fixes.",
+  "description": "BlackEnergy2.1 compatibility profile for P3.2.3.14 with evidence-first MITRE ATT&CK reporting, segment-aware clock correlation, task-scoped PCAP and Sysmon network attribution; preserves its validated immediate child-attach path.",
   "target": {
     "name": "rootkit.exe"
   },
@@ -12,6 +12,8 @@
   },
   "features": {
     "legacy_int2a": true,
+    "exception_diagnostics": true,
+    "child_exception_diagnostics": false,
     "follow_children": true,
     "follow_injected_targets": true,
     "private_exec_callers": true,
@@ -39,7 +41,7 @@
   "capemon_detect_timeout": 20,
   "capemon_grace": 8,
   "child_capemon_detect_timeout": 5,
-  "child_capemon_grace": 0.5,
+  "child_capemon_grace": 2.5,
   "injection_capemon_detect_timeout": 2,
   "injection_capemon_grace": 0.25,
   "injection_min_signals": 2,
@@ -50,16 +52,32 @@
   "sysmon_channel": "Microsoft-Windows-Sysmon/Operational",
   "sysmon_event_ids": [
     1,
+    3,
     5,
     8,
+    22,
     25
   ],
+  "sysmon_network_event_limit": 20000,
+  "sysmon_final_drain_timeout": 2.0,
+  "sysmon_final_drain_quiet_period": 0.5,
+  "pcap_capture": {
+    "enabled": true,
+    "agent_url": "http://192.168.56.2:54321",
+    "agent_token": "",
+    "guest_ip": "auto",
+    "duration": 240,
+    "fetch": true,
+    "required": false,
+    "timeout": 5.0,
+    "clock_sample_interval": 10.0
+  },
   "sysmon_injected_source_policy": "correlate",
   "child_wait_for_root_ready": true,
   "child_root_ready_timeout": 15.0,
   "sysmon_tampering_init_window": 3.0,
   "capemon_fallback_delay": 8.0,
-  "schema_version": 3.1,
+  "schema_version": "3.2.3.14",
   "p3_max_evidence": 5000,
   "match": {
     "min_score": 80,
@@ -83,5 +101,28 @@
     "size_score": 20,
     "sha256_score": 100
   },
-  "capemon_activation_timeout": 30.0
+  "capemon_activation_timeout": 30.0,
+  "child_root_priority_window": 0.35,
+  "capemon_ready_log_tail_bytes": 262144,
+  "attach_timeout": 4.0,
+  "child_attach_timeout": 8.0,
+  "attach_helper_extension": 4.0,
+  "attach_poll_interval": 0.05,
+  "attach_retry_delay": 0.15,
+  "frida_device_prewarm": true,
+  "frida_device_wait_timeout": 1.0,
+  "early_agent_attach": false,
+  "early_agent_roles": [
+    "child"
+  ],
+  "script_source_prewarm": true,
+  "child_attach_policy": "immediate",
+  "child_capemon_exclusive_window": 0.0,
+  "child_fast_path": false,
+  "child_fast_only": false,
+  "frida_injector_prewarm": false,
+  "frida_injector_prewarm_arches": [
+    "x86"
+  ],
+  "frida_injector_prewarm_timeout": 3.0
 }

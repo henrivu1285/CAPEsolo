@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""P3.2.2 semantic behavior compaction and per-API coverage accounting.
+"""P3.2.3.14 semantic behavior compaction and per-API coverage accounting.
 
 This module is display/report-layer only. It never rewrites CAPEsolo report.json,
 behavior.provenance.jsonl, or behavior.filtered.jsonl.  The clean-view JSONL
 remains the lossless analyst evidence stream; this module builds an additional
 compact semantic view for high-volume observational API bursts.
 
-P3.2.2 deliberately does NOT reclassify calls as Frida.  Provenance decisions are
+P3.2.3 deliberately does NOT reclassify calls as Frida.  Provenance decisions are
 inherited from P3.2.1.  Compaction only reduces repetitive presentation while
 preserving a reversible source-count invariant and explicit coverage warnings.
 """
@@ -22,13 +22,13 @@ from pathlib import Path
 from typing import Any
 
 HERE = Path(__file__).resolve().parent
-if str(HERE) not in sys.path:
-    sys.path.insert(0, str(HERE))
+PROJECT_ROOT = HERE.parent
+for search_path in (HERE, PROJECT_ROOT):
+    if str(search_path) not in sys.path:
+        sys.path.insert(0, str(search_path))
 
-try:
-    from p3_run_scope import load_runtime_for_analysis, select_run_log
-except ImportError:
-    from p3_run_scope_p32 import load_runtime_for_analysis, select_run_log
+from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION, product_version_for_runtime
+from p3_run_scope import load_runtime_for_analysis, select_run_log
 
 API_RATE_CAP_RE = re.compile(
     r"api-rate-cap:\s+([A-Za-z0-9_]+)\s+hook disabled due to rate", re.I
@@ -47,6 +47,10 @@ COMPACTABLE_APIS = {
     "ntwaitforsingleobject",
     "ntdelayexecution",
     "getsystemtimeasfiletime",
+    "ntclose",
+    "process32nextw",
+    "process32nexta",
+    "process32next",
 }
 COMPACT_MIN_GROUP_COUNT = 8
 COMPACT_MAX_GROUP_SPAN_MS = 1000.0
@@ -63,6 +67,9 @@ STABLE_ARGUMENTS = {
     "ntqueryinformationtoken": ("TokenInformationClass",),
     "ntwaitforsingleobject": ("Handle", "Alertable"),
     "ntdelayexecution": ("Alertable",),
+    # NtClose/Process32Next* intentionally have no stable argument. Their
+    # per-call values are summarized as variable examples; the lossless
+    # behavior.filtered.jsonl remains the authoritative expansion source.
 }
 
 
@@ -209,24 +216,47 @@ def _coverage_map(all_records: list[dict], filtered_records: list[dict], scoped_
     disabled_lower = {x.lower(): x for x in disabled}
     names = list(dict.fromkeys(list(total.keys()) + disabled))
     result: dict[str, dict] = {}
+    framework_only_caps = []
     for name in names:
         capped = name.lower() in disabled_lower
+        observed_total = int(total.get(name, 0))
+        clean_calls = int(clean.get(name, 0))
+        framework_calls = int(framework.get(name, 0))
+        framework_only = bool(
+            capped
+            and observed_total > 0
+            and clean_calls == 0
+            and framework_calls >= observed_total
+        )
+        if framework_only:
+            framework_only_caps.append(name)
         result[name] = {
             "state": "rate_capped" if capped else "observed",
             "count_semantics": "lower_bound" if capped else "observed",
-            "observed_total": int(total.get(name, 0)),
-            "clean_view_calls": int(clean.get(name, 0)),
-            "framework_calls": int(framework.get(name, 0)),
+            "observed_total": observed_total,
+            "clean_view_calls": clean_calls,
+            "framework_calls": framework_calls,
             "rate_cap_detected": capped,
+            "coverage_impact": (
+                "framework_only" if framework_only
+                else ("malware_visible_or_unknown" if capped else "none")
+            ),
         }
         if capped:
             result[name]["interpretation"] = (
                 "CAPEMON disabled this API hook due to rate; observed counts are a lower bound "
                 "and absence after the rate-cap event is not evidence of no activity."
             )
+    if not disabled:
+        status = "full_observed"
+    elif len(framework_only_caps) == len(disabled):
+        status = "expected_framework_rate_cap"
+    else:
+        status = "degraded"
     return {
-        "status": "degraded" if disabled else "full_observed",
+        "status": status,
         "disabled_hooks": disabled,
+        "framework_only_rate_caps": framework_only_caps,
         "rate_cap_event_count": len(rate_cap_lines),
         "by_api": result,
         "examples": rate_cap_lines[:10],
@@ -373,7 +403,9 @@ def build_compact_view(
     filtered_records = _load_jsonl(filtered_path)
     if not filtered_path.is_file():
         result = {
-            "schema": "capesolo-frida-behavior-compact/3.2.2",
+            "schema": "capesolo-frida-behavior-compact/3.2.3",
+            "version": product_version_for_runtime(runtime),
+            "processor_version": PRODUCT_VERSION,
             "run_id": runtime.get("run_id"),
             "available": False,
             "reason": "behavior_filtered_jsonl_not_found",
@@ -398,7 +430,9 @@ def build_compact_view(
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     result = {
-        "schema": "capesolo-frida-behavior-compact/3.2.2",
+        "schema": "capesolo-frida-behavior-compact/3.2.3",
+        "version": product_version_for_runtime(runtime),
+        "processor_version": PRODUCT_VERSION,
         "run_id": runtime.get("run_id"),
         "available": True,
         "run_scope": run_scope,
@@ -412,6 +446,7 @@ def build_compact_view(
             "Compaction does not change provenance labels or infer Frida attribution.",
             "Only high-volume observational/query APIs are eligible for burst compaction.",
             "Rate-capped API counts are lower bounds; missing calls after CAPEMON disables a hook are not interpreted as absence of activity.",
+            "Framework-only rate caps are separated from malware-visible or unknown coverage loss.",
         ],
     }
     summary_path = output_dir / "frida_behavior_compact.json"

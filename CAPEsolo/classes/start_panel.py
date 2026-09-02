@@ -1,28 +1,42 @@
 import hashlib
+import json
 import logging
 import os
 import shutil
+import subprocess
+import sys
+import time
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 from threading import Thread
 
 import wx
+import wx.lib.scrolledpanel as scrolled
 from sflock.abstracts import File as SflockFile
 from sflock.ident import identify as sflock_identify
 
 from CAPEsolo.capelib.resultserver import ResultServer
 from CAPEsolo.capelib.utils import sanitize_filename
 from CAPEsolo.lib.common.hashing import hash_file
+from CAPEsolo.lib.core.result_archive import build_result_archive
 from CAPEsolo.utils.update_yara import UpdateYara
+from CAPEsolo.utils.download_sample import configured_sources, download_dir, download_enabled, desktop_dir
+from .analysis_conf import AnalysisConfPanel
 from .debug_console import DebugConsole
 from .json_report import GetResults
 from .html_report import ReportHTML
 from .key_event import EVT_ANALYZER_COMPLETE, EVT_ANALYZER_COMPLETE_ID
 from .logger_window import LoggerWindow
+from .process_tree_window import ProcessTreeWindow
 from .theme import apply_theme
 
 log = logging.getLogger(__name__)
+
+# How long to wait for the end-of-run uploads to appear in the analysis folder before the
+# result server is stopped. Generous because it only elapses in full when something is
+# genuinely wrong; the normal case returns within a couple of polls.
+UPLOAD_WAIT_SECONDS = 15.0
 
 SANDBOXPACKAGES = (
     "Shellcode",
@@ -102,7 +116,87 @@ class AnalyzerCompleteEvent(wx.PyCommandEvent):
         self.message = message
 
 
-class StartPanel(wx.Panel):
+class _DownloadCredentialsDialog(wx.Dialog):
+    """Startup prompt for sample downloads. A password decrypts stored encrypted keys; an API
+    key can also be entered directly (used as-is, no decryption). All fields are masked."""
+
+    def __init__(self, parent, hasStored):
+        super().__init__(parent, title="Sample Download Credentials")
+        outer = wx.BoxSizer(wx.VERTICAL)
+        outer.Add(
+            wx.StaticText(
+                self,
+                label=(
+                    "Enter a password to unlock stored encrypted keys, and/or enter an\n"
+                    "API key directly. Cancel to disable downloads."
+                ),
+            ),
+            flag=wx.ALL,
+            border=12,
+        )
+
+        # Password (for stored encrypted keys) and directly-entered keys sit in separate
+        # titled boxes for clarity.
+        self.pwdCtrl = None
+        if hasStored:
+            pwdBox = wx.StaticBoxSizer(wx.VERTICAL, self, "Password (unlock stored keys)")
+            self.pwdCtrl = wx.TextCtrl(pwdBox.GetStaticBox(), style=wx.TE_PASSWORD)
+            pwdBox.Add(self.pwdCtrl, flag=wx.EXPAND | wx.ALL, border=8)
+            outer.Add(pwdBox, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
+
+        keyBox = wx.StaticBoxSizer(wx.VERTICAL, self, "Enter API key(s) directly")
+        keyParent = keyBox.GetStaticBox()
+        grid = wx.FlexGridSizer(rows=2, cols=2, hgap=8, vgap=8)
+        grid.AddGrowableCol(1, 1)
+        grid.Add(wx.StaticText(keyParent, label="VirusTotal:"), flag=wx.ALIGN_CENTER_VERTICAL)
+        self.vtCtrl = wx.TextCtrl(keyParent, style=wx.TE_PASSWORD)
+        grid.Add(self.vtCtrl, flag=wx.EXPAND)
+        grid.Add(wx.StaticText(keyParent, label="MalwareBazaar:"), flag=wx.ALIGN_CENTER_VERTICAL)
+        self.mbCtrl = wx.TextCtrl(keyParent, style=wx.TE_PASSWORD)
+        grid.Add(self.mbCtrl, flag=wx.EXPAND)
+        keyBox.Add(grid, flag=wx.EXPAND | wx.ALL, border=8)
+        outer.Add(keyBox, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
+
+        # Explicit wx.Buttons rather than CreateButtonSizer: the stock MSW dialog buttons render
+        # natively and ignore SetBackgroundColour, so the theme could not darken them. wx.Dialog
+        # still auto-handles the ID_OK / ID_CANCEL ids to end the modal with the right result.
+        btnRow = wx.BoxSizer(wx.HORIZONTAL)
+        okBtn = wx.Button(self, wx.ID_OK, "OK")
+        okBtn.SetDefault()
+        btnRow.AddStretchSpacer(1)
+        btnRow.Add(okBtn, flag=wx.RIGHT, border=8)
+        btnRow.Add(wx.Button(self, wx.ID_CANCEL, "Cancel"))
+        outer.Add(btnRow, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
+
+        # Enter confirms OK from any field (SetDefault alone is unreliable while a text field
+        # has focus); Escape still cancels via the dialog's built-in ID_CANCEL handling.
+        self.Bind(wx.EVT_CHAR_HOOK, self._OnCharHook)
+
+        # Theme first, then fit: apply_theme swaps in FONT_UI, so fitting beforehand would size
+        # the dialog to the smaller default font and squish the controls and the button row.
+        self.SetSizer(outer)
+        apply_theme(self)
+        self.Fit()
+        if self.GetSize().width < 440:
+            self.SetSize(wx.Size(440, self.GetSize().height))
+        self.SetMinSize(self.GetSize())
+
+    def _OnCharHook(self, event):
+        if event.GetKeyCode() in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
+            self.EndModal(wx.ID_OK)
+            return
+        event.Skip()
+
+    def GetCredentials(self):
+        password = self.pwdCtrl.GetValue() if self.pwdCtrl else ""
+        keys = {
+            "VirusTotal": self.vtCtrl.GetValue().strip(),
+            "MalwareBazaar": self.mbCtrl.GetValue().strip(),
+        }
+        return password, keys
+
+
+class StartPanel(scrolled.ScrolledPanel):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
@@ -118,9 +212,19 @@ class StartPanel(wx.Panel):
         self.parent.targetFile = self.targetFile
         self.idbg = False
         self.dbgConsole = None
+        self.processTreeWindow = None
+        self.downloadBroker = None
+        self._downloading = False
         self.InitUi()
+        # A prior/restored analysis (s_* found by GetPreviousTarget) is reportable without a run,
+        # so enable the report buttons; the per-tab process buttons enable from their artifacts.
+        if self.targetFile:
+            self.jsonReportBtn.Enable()
+            self.htmlReportBtn.Enable()
         self.LoadAnalysisConfFile()
         self.Bind(EVT_ANALYZER_COMPLETE, self.OnAnalyzerComplete)
+        # Deferred so the frame is realized before the modal password dialog.
+        wx.CallAfter(self._InitDownloadBroker)
 
         """ for debugging the panel layout
         mainFrame = self.GetMainFrame()
@@ -143,6 +247,43 @@ class StartPanel(wx.Panel):
         browseBtn.Bind(wx.EVT_BUTTON, self.OnBrowse)
         hbox1.Add(self.targetPath, proportion=1, flag=wx.EXPAND | wx.RIGHT, border=5)
         hbox1.Add(browseBtn, proportion=0)
+
+        # Download a sample by hash and feed it into the same target flow as Browse. Grouped in
+        # a titled box so it's clearly the download feature. The source is auto-selected
+        # (VirusTotal first, then MalwareBazaar) from the hash and which keys are configured; the
+        # controls are enabled once the download broker starts (see _InitDownloadBroker).
+        dlBox = wx.StaticBoxSizer(wx.VERTICAL, self, "Download by hash")
+        dlParent = dlBox.GetStaticBox()
+
+        hboxDownload = wx.BoxSizer(wx.HORIZONTAL)
+        self.hashInput = wx.TextCtrl(dlParent)
+        self.hashInput.SetHint("<md5, sha1, sha256>")
+        self.hashInput.SetToolTip("MD5/SHA1/SHA256 hex hash. MalwareBazaar requires SHA256.")
+        self.downloadBtn = wx.Button(dlParent, label="Download")
+        self.downloadBtn.Disable()
+        self.downloadBtn.Bind(wx.EVT_BUTTON, self.OnDownloadSample)
+        hboxDownload.Add(self.hashInput, proportion=1, flag=wx.EXPAND | wx.RIGHT, border=5)
+        hboxDownload.Add(self.downloadBtn, proportion=0)
+        dlBox.Add(hboxDownload, flag=wx.EXPAND | wx.ALL, border=5)
+
+        # Where downloaded samples are saved; prefilled with the effective default
+        # ([download] directory, else the user's Desktop) and editable per download.
+        hboxDownloadPath = wx.BoxSizer(wx.HORIZONTAL)
+        hboxDownloadPath.Add(
+            wx.StaticText(dlParent, label="Path:"),
+            flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+            border=5,
+        )
+        self.downloadPathInput = wx.TextCtrl(dlParent)
+        self.downloadPathInput.SetValue(download_dir())
+        self.downloadPathInput.SetToolTip("Directory where downloaded samples are saved.")
+        self.downloadPathInput.Disable()
+        self.downloadDirBtn = wx.Button(dlParent, label="Browse...")
+        self.downloadDirBtn.Disable()
+        self.downloadDirBtn.Bind(wx.EVT_BUTTON, self.OnBrowseDownloadDir)
+        hboxDownloadPath.Add(self.downloadPathInput, proportion=1, flag=wx.EXPAND | wx.RIGHT, border=5)
+        hboxDownloadPath.Add(self.downloadDirBtn, proportion=0)
+        dlBox.Add(hboxDownloadPath, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=5)
 
         hbox2 = wx.BoxSizer(wx.HORIZONTAL)
         packageLabel = wx.StaticText(self, label="Packages")
@@ -227,6 +368,14 @@ class StartPanel(wx.Panel):
         self.free.Bind(wx.EVT_CHECKBOX, self.OnFreeChecked)
         hboxHooking.Add(self.free, flag=wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, border=5)
 
+        self.unhookOnExit = wx.CheckBox(self, label="Unhook on exit")
+        self.unhookOnExit.SetToolTip(
+            "Restore hooked APIs (uninject the monitor) in surviving processes when the "
+            "analysis ends, so the machine stays responsive."
+        )
+        self.unhookOnExit.SetValue(True)
+        hboxHooking.Add(self.unhookOnExit, flag=wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, border=5)
+
         # Monitor logging switches. Laid out as a fixed two-row grid rather than a
         # WrapSizer: wrapping gave no vertical gap between the lines it created (so they
         # collided), stretched whichever control landed last on a line, and left the level
@@ -299,7 +448,7 @@ class StartPanel(wx.Panel):
         self.analysisConfExpander.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED, self.OnCollapsiblePaneChanged)
         self.analysisConfExpander.GetPane().SetMinSize(self.GetSize())
         analysisConfPane = self.analysisConfExpander.GetPane()
-        self.analysisEditor = wx.TextCtrl(analysisConfPane, style=wx.TE_MULTILINE, size=self.GetSize())
+        self.analysisEditor = AnalysisConfPanel(analysisConfPane)
         analysisConfSizer.Add(self.analysisConfExpander, proportion=1, flag=wx.EXPAND | wx.ALL, border=0)
         analysisConfPaneSizer = wx.BoxSizer(wx.VERTICAL)
         analysisConfPaneSizer.Add(self.analysisEditor, proportion=1, flag=wx.EXPAND | wx.ALL, border=0)
@@ -399,6 +548,10 @@ class StartPanel(wx.Panel):
         self.staticAnalysis = wx.CheckBox(self, label="Static analysis")
         self.staticAnalysis.SetToolTip("Check this box to enable static code analysis.")
 
+        self.autoProcess = wx.CheckBox(self, label="Auto-process")
+        self.autoProcess.SetToolTip("Automatically process and populate the result tabs when a run completes.")
+        self.autoProcess.SetValue(True)
+
         self.jsonReportBtn = wx.Button(self, label="JSON Report")
         self.jsonReportBtn.Disable()
         self.jsonReportBtn.Bind(wx.EVT_BUTTON, self.JsonReport)
@@ -410,6 +563,10 @@ class StartPanel(wx.Panel):
         updateYaraBtn = wx.Button(self, label="Update Yara")
         updateYaraBtn.Bind(wx.EVT_BUTTON, self.OnUpdateYara)
 
+        self.zipResultsBtn = wx.Button(self, label="Zip Results")
+        self.zipResultsBtn.SetToolTip("Zip the analysis directory to the Desktop, to restore in a clean VM.")
+        self.zipResultsBtn.Bind(wx.EVT_BUTTON, self.OnZipResults)
+
         openDirBtn = wx.Button(self, label="View Analysis Directory")
         openDirBtn.Bind(wx.EVT_BUTTON, self.OnOpenDirectory)
         self.terminateAnalyzerBtn = wx.Button(self, label="Kill")
@@ -418,17 +575,20 @@ class StartPanel(wx.Panel):
         hbox5.Add(self.launchAnalyzerBtn, proportion=0, flag=wx.EXPAND | wx.RIGHT, border=5)
         hbox5.AddSpacer(10)
         hbox5.Add(self.staticAnalysis, proportion=0, flag=wx.EXPAND | wx.RIGHT, border=5)
+        hbox5.Add(self.autoProcess, proportion=0, flag=wx.EXPAND | wx.RIGHT, border=5)
 
         hbox5.AddStretchSpacer(1)
         hbox5.Add(self.jsonReportBtn, proportion=0, flag=wx.EXPAND | wx.RIGHT, border=5)
         hbox5.Add(self.htmlReportBtn, proportion=0, flag=wx.EXPAND | wx.RIGHT, border=5)
         hbox5.Add(updateYaraBtn, proportion=0, flag=wx.EXPAND | wx.RIGHT, border=5)
+        hbox5.Add(self.zipResultsBtn, proportion=0, flag=wx.EXPAND | wx.RIGHT, border=5)
         hbox5.Add(openDirBtn, proportion=0, flag=wx.EXPAND | wx.RIGHT, border=5)
         hbox5.Add(self.terminateAnalyzerBtn, proportion=0, flag=wx.EXPAND)
         self.terminateAnalyzerBtn.Disable()
 
         # Layout
         vbox.Add(hbox1, flag=wx.EXPAND | wx.ALL, border=10)
+        vbox.Add(dlBox, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)
         vbox.Add(hbox2, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)
         vbox.Add(hbox3, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)
         vbox.Add(hboxHelp, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)
@@ -449,6 +609,15 @@ class StartPanel(wx.Panel):
         vbox.Add(hbox5, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)
 
         self.SetSizer(vbox)
+        # Vertical-only scrolling so the config sections stay reachable when the panel is
+        # shorter than its content. SetupScrolling initialises the ScrolledPanel (scroll rate,
+        # child-focus scroll), but its FitInside() sets the virtual size from the sizer's min
+        # in BOTH axes - that pinned the virtual width to an oversized min (breaking the
+        # horizontal fit GrowFrameToFitContent relies on) and left the virtual height below the
+        # client height (an unpainted band that ghosted the bottom-row checkboxes). OnPanelSize
+        # corrects the virtual size on every resize.
+        self.SetupScrolling(scroll_x=False, scroll_y=True)
+        self.Bind(wx.EVT_SIZE, self.OnPanelSize)
         apply_theme(self)
 
     def AddOptionsHelp(self):
@@ -572,8 +741,34 @@ class StartPanel(wx.Panel):
     def OnCollapsiblePaneChanged(self, event):
         self.Layout()
         self.GrowFrameToFitContent()
+        # Content height changed, so recompute the scroll range. Guarded because this handler
+        # is also fired from InitUi (line ~315) before SetSizer, where there is no sizer yet.
+        if self.GetSizer() is not None:
+            self._UpdateVirtualSize()
+            self.Layout()
+            self.Refresh()
         if event:
             event.Skip()
+
+    def OnPanelSize(self, event):
+        self._UpdateVirtualSize()
+        event.Skip()
+
+    def _UpdateVirtualSize(self):
+        # Vertical-only scroll: pin the virtual width to the client width so children fill the
+        # visible width (EXPAND) and horizontal growth stays with the frame (no horizontal
+        # scrollbar). Keep the virtual height at least the client height so there is never an
+        # unpainted band below the content - that band ghosted the bottom-row checkboxes.
+        sizer = self.GetSizer()
+        if sizer is None:
+            return
+        client = self.GetClientSize()
+        minHeight = sizer.GetMinSize().height
+        target = wx.Size(client.width, max(minHeight, client.height))
+        # Only set when it actually changes: toggling a vertical scrollbar changes the client
+        # width and re-fires EVT_SIZE, so an unconditional set could churn.
+        if self.GetVirtualSize() != target:
+            self.SetVirtualSize(target)
 
     def GrowFrameToFitContent(self):
         """Widen the frame when an expanded pane needs more room than the window has.
@@ -636,8 +831,21 @@ class StartPanel(wx.Panel):
 
         files = Files()
         files.dump_files()
-        upload_files("debugger")
-        upload_files("tlsdump")
+
+        # Independently guarded, and logged where the analyst will see it. These two calls sat
+        # outside the try below, and upload_files only catches IOError and socket.error - so
+        # anything else raised while uploading the debugger logs skipped the tlsdump upload
+        # entirely. Being a wx event handler, the traceback went to stderr rather than the
+        # analysis log, so an artifact could go missing with nothing recorded anywhere.
+        folders = ("debugger", "tlsdump")
+        pending = self.PendingUploads(folders)
+        for folder in folders:
+            try:
+                upload_files(folder)
+            except Exception:
+                self.log(f"Failed to upload {folder} files:\n{traceback.format_exc()}")
+
+        self.WaitForUploads(pending)
         self.GetMainFrame().statusBar.Finish("Analysis complete")
         self.log("Shutting down")
         try:
@@ -658,7 +866,92 @@ class StartPanel(wx.Panel):
             self.htmlReportBtn.Enable()
         except Exception:
             self.log(traceback.format_exc())
+
+        if self.autoProcess.GetValue():
+            self.AutoProcessTabs()
         return True
+
+    def AutoProcessTabs(self):
+        """Populate the result tabs in dependency order after a run so the user need not
+        open each tab and click its process button. Only called when Auto-process is
+        checked; the handlers it calls each disable their own button and set a completion
+        flag, so those buttons stay disabled once processed. When Auto-process is unchecked
+        this is skipped and the buttons enable as before for manual processing.
+        """
+        mainFrame = self.GetMainFrame()
+        statusBar = mainFrame.statusBar
+        with wx.BusyCursor():
+            self._AutoStep(statusBar, "info", mainFrame.infoTab.LoadAndDisplayContent)
+
+            logsDir = Path(self.analysisDir) / "logs"
+            if logsDir.exists() and any(logsDir.iterdir()) and not mainFrame.behaviorTab.behaviorComplete:
+                self._AutoStep(statusBar, "behavior", lambda: mainFrame.behaviorTab.GenerateBehavior(None))
+
+            self._AutoStep(statusBar, "payloads", mainFrame.payloadsTab.PayloadsReady)
+
+            if self.targetFile and not mainFrame.yaraTab.yaraComplete:
+                self._AutoStep(statusBar, "yara", lambda: mainFrame.yaraTab.ProcessYara(None))
+
+            if self.parent.configHits:
+                self._AutoStep(statusBar, "configs", lambda: mainFrame.configsTab.ExtractConfigs(None))
+
+            if self.parent.results and not mainFrame.signaturesTab.signaturesComplete:
+                self._AutoStep(statusBar, "signatures", lambda: mainFrame.signaturesTab.GenerateSignatures(None))
+        statusBar.SetMessage("Analysis complete - tabs processed")
+
+    def _AutoStep(self, statusBar, label, fn):
+        statusBar.SetMessage(f"Processing {label}...")
+        try:
+            fn()
+        except Exception:
+            log.exception("Auto-process: failed to process %s", label)
+
+    def PendingUploads(self, folders):
+        """Destination paths the end-of-run uploads are expected to produce."""
+        from CAPEsolo.analyzer import PATHS
+
+        pending = []
+        for folder in folders:
+            source = Path(PATHS["root"], folder)
+            if not source.is_dir():
+                continue
+
+            for path in sorted(source.iterdir()):
+                if path.is_file():
+                    pending.append(Path(self.analysisDir, folder, path.name))
+
+        return pending
+
+    def WaitForUploads(self, pending, timeout=UPLOAD_WAIT_SECONDS):
+        """Wait for the end-of-run uploads to land before the result server is stopped.
+
+        upload_to_host returns once the bytes are in the socket buffer, not when the result
+        server has written them to disk. Shutting the server down straight afterwards closed
+        the listener while an upload was still waiting to be accepted, and anything not yet
+        accepted is dropped - the analysis log showed tlsdump.log handed over, then a
+        connection closed "unnegotiated" and the file never written.
+
+        Both ends are the same machine here, so the files themselves are the acknowledgement
+        the protocol does not provide. Sleeping also hands the CPU to the server's thread,
+        which is what lets it accept the connection at all: this handler otherwise runs from
+        upload straight into shutdown without ever yielding.
+        """
+        if not pending:
+            return
+
+        deadline = time.monotonic() + timeout
+        missing = [path for path in pending if not path.is_file()]
+        while missing and time.monotonic() < deadline:
+            time.sleep(0.1)
+            missing = [path for path in missing if not path.is_file()]
+
+        if missing:
+            self.log(
+                f"Uploads did not arrive within {timeout}s: "
+                + ", ".join(str(path) for path in missing)
+            )
+        else:
+            self.log(f"All {len(pending)} end-of-run upload(s) arrived")
 
     def MoveFiles(self, folder):
         logFolder = f"{self.analyzer.PATHS['root']}\\{folder}"
@@ -684,16 +977,9 @@ class StartPanel(wx.Panel):
         return
 
     def LoadAnalysisConfFile(self):
-        try:
-            analysisConf = os.path.join(self.capesoloRoot, "analysis_conf.default")
-            with open(analysisConf, "r") as hfile:
-                self.analysisEditor.SetValue(hfile.read())
-        except IOError as e:
-            wx.MessageBox(
-                f"Failed to load analysis.conf: {str(e)}",
-                "Error",
-                wx.OK | wx.ICON_ERROR,
-            )
+        # The default file is the schema: its keys become the controls and its ";" comments
+        # become their tooltips, so it stays the one place a key is described.
+        self.analysisEditor.Load(os.path.join(self.capesoloRoot, "analysis_conf.default"))
 
     def OnOptionInputClick(self, event):
         if self.optionsCtrl.GetValue() == "option1=value, option2=value, etc...":
@@ -746,6 +1032,15 @@ class StartPanel(wx.Panel):
                 wx.OK | wx.ICON_ERROR,
             )
 
+    def OnBrowseDownloadDir(self, event):
+        current = self.downloadPathInput.GetValue().strip()
+        defaultPath = current if os.path.isdir(current) else ""
+        with wx.DirDialog(
+            self, "Choose download directory", defaultPath=defaultPath, style=wx.DD_DEFAULT_STYLE
+        ) as dlg:
+            if dlg.ShowModal() == wx.ID_OK:
+                self.downloadPathInput.SetValue(dlg.GetPath())
+
     def OnBrowse(self, event):
         # Must be absolute and exist: wxFileDialog hands defaultDir to
         # SHCreateItemFromParsingName, which rejects a relative path outright with
@@ -771,6 +1066,147 @@ class StartPanel(wx.Panel):
                 self.OnTargetSelection()
             except IOError:
                 wx.LogError(f"Cannot open file '{pathname}'.")
+
+    def _InitDownloadBroker(self):
+        """When downloads are enabled, prompt once for a password and/or API keys and start the
+        broker subprocess that holds them, so the GUI never retains the plaintext key. Left
+        disabled with a hint when the feature is off or no credentials are supplied."""
+        if not download_enabled():
+            self.downloadBtn.SetToolTip(
+                "Downloads disabled. Set [download] enabled = true in cfg.ini to use them."
+            )
+            return
+        try:
+            stored = configured_sources()
+        except Exception:
+            stored = []
+        dlg = _DownloadCredentialsDialog(self, bool(stored))
+        if dlg.ShowModal() != wx.ID_OK:
+            dlg.Destroy()
+            self.downloadBtn.SetToolTip("Restart CAPEsolo and enter credentials to enable downloads.")
+            return
+        password, keys = dlg.GetCredentials()
+        dlg.Destroy()
+        # A provider is usable with a directly-entered key, or a stored blob plus the password.
+        if not (keys.get("VirusTotal") or keys.get("MalwareBazaar") or (password and stored)):
+            self.downloadBtn.SetToolTip(
+                "No key or password entered. Paste an API key at startup, or configure one with tools/encrypt_api_key.py."
+            )
+            return
+        try:
+            self.downloadBroker = subprocess.Popen(
+                [sys.executable, "-m", "CAPEsolo.utils.download_sample", "--serve"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                text=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            self.downloadBroker.stdin.write(json.dumps({"password": password, "keys": keys}) + "\n")
+            self.downloadBroker.stdin.flush()
+        except Exception as e:
+            self.downloadBroker = None
+            wx.MessageBox(f"Could not start the download helper:\n{e}", "Error", wx.OK | wx.ICON_ERROR)
+            return
+        finally:
+            password = None
+            keys = None
+        self.downloadBtn.Enable()
+        self.downloadBtn.SetToolTip("Download by hash (auto: VirusTotal, then MalwareBazaar).")
+        self.downloadPathInput.Enable()
+        self.downloadDirBtn.Enable()
+
+    def _StopDownloadBroker(self):
+        """Kill the broker and wait for it to exit, so the password/key are gone from memory
+        before detonation (its pages are reclaimed and zero-filled by the OS)."""
+        broker = self.downloadBroker
+        if not broker:
+            return
+        self.downloadBroker = None
+        with suppress(Exception):
+            broker.stdin.close()
+        with suppress(Exception):
+            broker.terminate()
+        with suppress(Exception):
+            broker.wait(timeout=5)
+
+    def OnDownloadSample(self, event):
+        # The button doubles as Cancel while a download is running.
+        if self._downloading:
+            self._CancelDownload()
+            return
+        if not self.downloadBroker or self.downloadBroker.poll() is not None:
+            wx.MessageBox(
+                "Downloads are not available. Restart CAPEsolo and enter the password.",
+                "Error",
+                wx.OK | wx.ICON_ERROR,
+            )
+            return
+        sampleHash = self.hashInput.GetValue().strip()
+        if not sampleHash:
+            wx.MessageBox("Enter a sample hash to download.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+        # Read the destination on the GUI thread; fall back to the configured/default dir.
+        dest = self.downloadPathInput.GetValue().strip() or download_dir()
+        self._downloading = True
+        self.downloadBtn.SetLabel("Cancel")
+        self.downloadBtn.SetToolTip("Cancel the download in progress.")
+        self.hashInput.Disable()
+        self.downloadPathInput.Disable()
+        self.downloadDirBtn.Disable()
+        self.GetMainFrame().statusBar.SetMessage(f"Downloading {sampleHash}...")
+        Thread(target=self._DownloadSampleThread, args=(sampleHash, dest), daemon=True).start()
+
+    def _CancelDownload(self):
+        broker = self.downloadBroker
+        if not broker:
+            return
+        # Tell the broker to abandon the in-flight download; it replies "cancelled" and stays
+        # alive (keeps the held password), so downloads remain available afterwards.
+        with suppress(Exception):
+            broker.stdin.write(json.dumps({"action": "cancel"}) + "\n")
+            broker.stdin.flush()
+        self.downloadBtn.Disable()  # avoid double-cancel; _OnDownloadDone restores the button
+        self.GetMainFrame().statusBar.SetMessage("Cancelling download...")
+
+    def _DownloadSampleThread(self, sampleHash, dest):
+        try:
+            broker = self.downloadBroker
+            if not broker or broker.poll() is not None:
+                raise RuntimeError("download helper is not running")
+            broker.stdin.write(json.dumps({"hash": sampleHash, "dest": dest}) + "\n")
+            broker.stdin.flush()
+            line = broker.stdout.readline()
+            if not line:
+                raise RuntimeError("no response from download helper")
+            reply = json.loads(line)
+            if reply.get("ok"):
+                wx.CallAfter(self._OnDownloadDone, Path(reply["path"]), None)
+            else:
+                wx.CallAfter(self._OnDownloadDone, None, reply.get("error", "unknown error"))
+        except Exception as e:
+            wx.CallAfter(self._OnDownloadDone, None, str(e))
+
+    def _OnDownloadDone(self, path, error):
+        statusBar = self.GetMainFrame().statusBar
+        self._downloading = False
+        self.downloadBtn.SetLabel("Download")
+        self.hashInput.Enable()
+        if self.downloadBroker:  # only re-enable if downloads are still available
+            self.downloadBtn.Enable()
+            self.downloadBtn.SetToolTip("Download by hash (auto: VirusTotal, then MalwareBazaar).")
+            self.downloadPathInput.Enable()
+            self.downloadDirBtn.Enable()
+        if error is not None:
+            if str(error) == "cancelled":
+                statusBar.SetMessage("Download cancelled")
+            else:
+                statusBar.SetMessage("Download failed")
+                wx.MessageBox(f"Sample download failed:\n{error}", "Error", wx.OK | wx.ICON_ERROR)
+            return
+        statusBar.SetMessage(f"Downloaded {path.name}")
+        # Reuse the Browse flow: set the target path and run the same validation.
+        self.targetPath.SetValue(str(path))
+        self.OnTargetSelection()
 
     def CopyTarget(self):
         self.targetFile = Path(self.analysisDir) / f"s_{hash_file(hashlib.sha256, self.target)}"
@@ -813,7 +1249,6 @@ class StartPanel(wx.Panel):
         currentDatetime = datetime.now()
         formattedDatetime = currentDatetime.strftime("%Y%m%dT%H:%M:%S")
         filename = str(self.target)
-        conf = self.analysisEditor.GetValue()
         userOptions = self.optionsCtrl.GetValue()
         timeout = int(self.timeoutInput.GetValue())
         sep = ","
@@ -831,6 +1266,8 @@ class StartPanel(wx.Panel):
         if self.free.GetValue():
             userOptions += f"{sep}free=1"
             sep = ","
+        userOptions += f"{sep}unhook-on-terminate={1 if self.unhookOnExit.GetValue() else 0}"
+        sep = ","
         for box, name, level in self.loggingOptions:
             if box.GetValue():
                 # Levelled options take the number leading their selected label; the
@@ -847,15 +1284,19 @@ class StartPanel(wx.Panel):
             timeout = 60 * 60 * 4  # 4 hours
             sep = ","
 
-        conf += f"\nenforce_timeout = {self.enforceTimeout}"
         self.countdown = timeout
-        conf += f"\ntimeout = {timeout}"
         debuggerOptions = self.GetDebuggerOptions()
-        conf += f"\nfile_name = {filename}"
-        conf += f"\nclock = {formattedDatetime}"
-        conf += f"\npackage = {self.package}"
-        conf += f"\noptions = {userOptions},{debuggerOptions}"
-        self.analysisEditor.SetValue(conf)
+        # Returned rather than written back into the editor. Appending these to the editor's
+        # own text meant a second launch in the same session appended them a second time, and
+        # configparser rejects the duplicate keys outright - so the run failed before it began.
+        return {
+            "enforce_timeout": self.enforceTimeout,
+            "timeout": timeout,
+            "file_name": filename,
+            "clock": formattedDatetime,
+            "package": self.package,
+            "options": f"{userOptions},{debuggerOptions}",
+        }
 
     def GetDebuggerOptions(self):
         opts = []
@@ -938,24 +1379,41 @@ class StartPanel(wx.Panel):
                     )
                     return
 
-            self.AddTargetOptions(event)
-            self.SaveAnalysisFile(event, False)
+            self.SaveAnalysisFile(event, False, self.AddTargetOptions(event))
             mainFrame = self.GetMainFrame()
             size = mainFrame.GetSize()
             position = mainFrame.GetPosition()
-            loggerWindow = LoggerWindow(self, "Analysis Log", position, size)
+            loggerWindow = LoggerWindow(
+                self, "Analysis Log", position, size, maximized=mainFrame.IsMaximized()
+            )
             loggerWindow.Show()
+            if self.processTreeWindow:
+                self.processTreeWindow.Close()
+            self.processTreeWindow = ProcessTreeWindow(self, "Process Tree", position)
+            self.processTreeWindow.Show()
+            # Kill the download broker (holding the key password) before the sample runs.
+            self._StopDownloadBroker()
             self.StartAnalysis()
 
         except Exception as e:
             wx.MessageBox(f"Failed to execute the command: {e}", "Error", wx.OK | wx.ICON_ERROR)
 
-    def SaveAnalysisFile(self, event, ack=True):
-        content = self.analysisEditor.GetValue()
+    def SaveAnalysisFile(self, event, ack=True, runtime=None):
+        # Generated from the form every time, so the file never accumulates keys across runs.
+        content = self.analysisEditor.GetText(runtime)
         path = os.path.join("analysis.conf")
         try:
             with open(path, "w") as hfile:
                 hfile.write(content)
+
+            # A second copy in the analysis folder. The analyzer reads the working-directory
+            # one, but everything that examines a finished analysis expects to find the
+            # config beside the results - RunSignatures builds conf_path that way
+            # (capelib/signatures.py), matching CAPEv2, and it resolved to a file that was
+            # never written. It also makes the folder self-describing: which options and
+            # which auxiliary modules produced these results.
+            with suppress(OSError):
+                Path(self.analysisDir, "analysis.conf").write_text(content)
 
             if ack:
                 wx.MessageBox(
@@ -976,6 +1434,18 @@ class StartPanel(wx.Panel):
             parent = parent.GetParent()
         return parent
 
+    def GetCapturePath(self):
+        """The capture chosen on the Network tab, so a report can include the wire view.
+
+        Optional by design: the network summary is built from the behaviour and JS logs
+        either way, and only the pcap-derived parts and the decrypted streams need this.
+        """
+        networkTab = getattr(self.GetMainFrame(), "networkTab", None)
+        if networkTab is None:
+            return ""
+
+        return networkTab.GetPcapPath()
+
     def log(self, message):
         log.info(message)
 
@@ -994,6 +1464,51 @@ class StartPanel(wx.Panel):
 
     def OnOpenDirectory(self, event):
         os.startfile(self.analysisDir)
+
+    def OnZipResults(self, event):
+        """Export either an analyst review bundle or all forensic evidence."""
+        choices = [
+            "Review bundle (important reports only)",
+            "Full forensic bundle (entire analysis directory)",
+        ]
+        dialog = wx.SingleChoiceDialog(
+            self,
+            "Choose the result archive profile. Review is small and intended for triage; Full preserves every raw artifact.",
+            "Zip Results",
+            choices,
+        )
+        try:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            mode = "review" if dialog.GetSelection() == 0 else "full"
+        finally:
+            dialog.Destroy()
+        dest = Path(desktop_dir()) / f"capesolo_{mode}_{datetime.now():%Y%m%d_%H%M%S}.zip"
+        self.zipResultsBtn.Disable()
+        self.GetMainFrame().statusBar.SetMessage(f"Creating {mode} result archive...")
+        Thread(target=self._ZipResultsThread, args=(dest, mode), daemon=True).start()
+
+    def _ZipResultsThread(self, dest, mode):
+        try:
+            path, _manifest = build_result_archive(self.analysisDir, dest, mode=mode)
+            wx.CallAfter(self._OnZipResultsDone, path, None)
+        except Exception as e:
+            wx.CallAfter(self._OnZipResultsDone, None, str(e))
+
+    def _OnZipResultsDone(self, path, error):
+        statusBar = self.GetMainFrame().statusBar
+        self.zipResultsBtn.Enable()
+        if error is not None:
+            statusBar.SetMessage("Zip failed")
+            wx.MessageBox(f"Failed to zip results:\n{error}", "Error", wx.OK | wx.ICON_ERROR)
+            return
+        statusBar.SetMessage(f"Zipped results to {path.name}")
+        wx.MessageBox(
+            f"Analysis results zipped to:\n{path}\n\nTo restore in a clean VM, copy this file to "
+            "C:\\Users\\Public\\CAPEsolo\\restore.zip and start CAPEsolo.",
+            "Zip Results",
+            wx.OK | wx.ICON_INFORMATION,
+        )
 
     def _LevelChoice(self, labels, tooltip):
         """Read-only selector for an option whose value is a level, not a flag.
@@ -1124,7 +1639,9 @@ class StartPanel(wx.Panel):
             busy = wx.BusyInfo("Please wait... Creating JSON report.", parent=self)
             wx.Yield()
             self.jsonReportBtn.Disable()
-            completed, msg = GetResults(self.targetFile, self.analysisDir)
+            completed, msg = GetResults(
+                self.targetFile, self.analysisDir, pcapPath=self.GetCapturePath()
+            )
             del busy
             if completed:
                 wx.MessageBox(f"JSON report completed successfully.", "JSON Report", wx.OK | wx.ICON_INFORMATION)
@@ -1149,7 +1666,9 @@ class StartPanel(wx.Panel):
             busy = wx.BusyInfo("Please wait... Creating HTML report.", parent=self)
             wx.Yield()
             self.htmlReportBtn.Disable()
-            results = GetResults(self.targetFile, self.analysisDir, False)
+            results = GetResults(
+                self.targetFile, self.analysisDir, False, pcapPath=self.GetCapturePath()
+            )
             report = ReportHTML()
             completed, msg = report.run(self.analysisDir, self.capesoloRoot, results)
             del busy

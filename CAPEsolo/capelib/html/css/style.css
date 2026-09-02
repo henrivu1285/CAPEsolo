@@ -229,6 +229,37 @@ pre {
     cursor: pointer;
 }
 
+/* MITRE ATT&CK evidence-first report */
+.mitre-report .mitre-metric {
+    background: #24282d;
+    border-left: 4px solid #ee1b2f;
+    min-height: 96px;
+}
+.mitre-report .mitre-number {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: .5rem;
+}
+.mitre-report .mitre-tactic {
+    background: #25282c;
+    border: 1px solid #495057;
+    border-radius: .35rem;
+    padding: .75rem;
+}
+.mitre-report .mitre-technique-list {
+    color: #adb5bd;
+    font-size: .8rem;
+    margin-top: .5rem;
+}
+.mitre-report .mitre-table th:first-child { min-width: 105px; }
+.mitre-report .mitre-table th:nth-child(2) { min-width: 230px; }
+.mitre-report .mitre-table th:nth-child(5) { min-width: 420px; }
+.mitre-report .mitre-evidence { padding-left: 1.2rem; }
+.mitre-report .mitre-evidence li { margin-bottom: .75rem; }
+.mitre-report details > summary { cursor: pointer; }
+.mitre-report a { color: #7dc7ff; }
+
 /* =========================
    API call category coloring
    ========================= */

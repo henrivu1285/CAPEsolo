@@ -1,0 +1,65 @@
+{% set assessment = results.threat_assessment %}
+{% if assessment %}
+{% set verdict = assessment.verdict or 'inconclusive' %}
+<section id="threat-assessment" class="mt-4 mb-4" aria-labelledby="threat-assessment-heading">
+    <div class="card {% if verdict == 'malicious' %}border-danger{% elif verdict == 'suspicious' %}border-warning{% elif verdict == 'benign' %}border-success{% else %}border-secondary{% endif %}">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <h5 id="threat-assessment-heading" class="mb-0">Threat assessment</h5>
+            <span class="badge fs-6 {% if verdict == 'malicious' %}bg-danger{% elif verdict == 'suspicious' %}bg-warning text-dark{% elif verdict == 'benign' %}bg-success{% else %}bg-secondary{% endif %}">{{ verdict | upper }}</span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 align-items-center">
+                <div class="col-12 col-md-3 text-center">
+                    <div class="display-4 fw-bold">{{ assessment.score }}<span class="fs-5 text-secondary">/100</span></div>
+                    <div>Evidence risk score</div>
+                    <div class="small text-secondary">Confidence: {{ assessment.confidence }}</div>
+                </div>
+                <div class="col-12 col-md-9">
+                    <div class="progress mb-2" role="progressbar" aria-label="Threat score" aria-valuenow="{{ assessment.score }}" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar {% if verdict == 'malicious' %}bg-danger{% elif verdict == 'suspicious' %}bg-warning{% elif verdict == 'benign' %}bg-success{% else %}bg-secondary{% endif %}" style="width: {{ assessment.score }}%"></div>
+                    </div>
+                    <p class="mb-1">{{ assessment.interpretation }}</p>
+                    {% if assessment.provisional %}<div class="small text-warning">The benign-range result is provisional; unavailable sensors are not evidence of absence.</div>{% endif %}
+                </div>
+            </div>
+
+            {% if assessment.components %}
+            <div class="table-responsive mt-3">
+                <table class="table table-dark table-striped align-middle mb-0">
+                    <thead><tr><th>Component</th><th>Points</th><th>Strongest signals</th></tr></thead>
+                    <tbody>
+                    {% for component in assessment.components %}
+                    <tr>
+                        <td>{{ component.category }}</td>
+                        <td class="mono">{{ component.points }} / {{ component.cap }}</td>
+                        <td>
+                            {% for signal in component.signals[:5] %}
+                            <span class="badge bg-dark border me-1">{{ signal.id or signal.rule_id or signal.name }} +{{ signal.points }}</span>
+                            {% else %}<span class="text-secondary">No contributing signal</span>{% endfor %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <details class="mt-3">
+                <summary>Scoring thresholds and telemetry quality</summary>
+                <div class="mt-2 small">
+                    <span class="badge bg-success">Benign 0–19</span>
+                    <span class="badge bg-warning text-dark">Suspicious 20–59</span>
+                    <span class="badge bg-danger">Malicious 60–100</span>
+                    <span class="ms-2">Score model: {{ assessment.score_version }}</span>
+                </div>
+                {% if assessment.quality.checks %}
+                <div class="mt-2 mono small">
+                    {% for name, available in assessment.quality.checks.items() %}{{ name }}={{ available }}{% if not loop.last %}; {% endif %}{% endfor %}
+                </div>
+                {% endif %}
+                {% if assessment.quality.limitations %}<div class="mt-2 text-warning">Limitations: {{ assessment.quality.limitations | join(', ') }}</div>{% endif %}
+            </details>
+        </div>
+    </div>
+</section>
+{% endif %}

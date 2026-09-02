@@ -3,6 +3,7 @@ import logging
 import os
 import queue
 import threading
+import time
 import xml.etree.ElementTree as ET
 
 log = logging.getLogger(__name__)
@@ -70,7 +71,8 @@ def parse_sysmon_event_xml(xml_text):
             if name:
                 event["data"][name] = (node.text or "").strip()
 
-    # Convenience aliases for the four event families consumed by P2.1.
+    # Convenience aliases for the process/injection and network event families
+    # consumed by P3.2.3.14. Keep the original EventData dict as raw evidence.
     d = event["data"]
     if event_id == 1:  # ProcessCreate
         event.update(
@@ -87,6 +89,25 @@ def parse_sysmon_event_xml(xml_text):
             process_guid=_strip_braces(d.get("ProcessGuid")),
             process_id=_to_int(d.get("ProcessId")),
             image=d.get("Image", ""),
+        )
+    elif event_id == 3:  # NetworkConnect
+        event.update(
+            process_guid=_strip_braces(d.get("ProcessGuid")),
+            process_id=_to_int(d.get("ProcessId")),
+            image=d.get("Image", ""),
+            user=d.get("User", ""),
+            protocol=str(d.get("Protocol", "")).lower(),
+            initiated=str(d.get("Initiated", "")).lower() in {"true", "1", "yes"},
+            source_is_ipv6=str(d.get("SourceIsIpv6", "")).lower() in {"true", "1", "yes"},
+            source_ip=d.get("SourceIp", ""),
+            source_hostname=d.get("SourceHostname", ""),
+            source_port=_to_int(d.get("SourcePort")),
+            source_port_name=d.get("SourcePortName", ""),
+            destination_is_ipv6=str(d.get("DestinationIsIpv6", "")).lower() in {"true", "1", "yes"},
+            destination_ip=d.get("DestinationIp", ""),
+            destination_hostname=d.get("DestinationHostname", ""),
+            destination_port=_to_int(d.get("DestinationPort")),
+            destination_port_name=d.get("DestinationPortName", ""),
         )
     elif event_id == 8:  # CreateRemoteThread
         event.update(
@@ -106,6 +127,16 @@ def parse_sysmon_event_xml(xml_text):
             process_id=_to_int(d.get("ProcessId")),
             image=d.get("Image", ""),
             tamper_type=d.get("Type", d.get("EventType", "")),
+        )
+    elif event_id == 22:  # DNSQuery
+        event.update(
+            process_guid=_strip_braces(d.get("ProcessGuid")),
+            process_id=_to_int(d.get("ProcessId")),
+            image=d.get("Image", ""),
+            user=d.get("User", ""),
+            query_name=d.get("QueryName", ""),
+            query_status=d.get("QueryStatus", ""),
+            query_results=d.get("QueryResults", ""),
         )
 
     return event
@@ -137,7 +168,7 @@ class SysmonRealtimeBridge:
     def __init__(
         self,
         on_event,
-        event_ids=(1, 5, 8, 25),
+        event_ids=(1, 3, 5, 8, 22, 25),
         channel=CHANNEL,
         logger=None,
         queue_size=2048,
@@ -160,6 +191,11 @@ class SysmonRealtimeBridge:
         self.dropped = 0
         self.startup_retry_seconds = max(0.0, float(startup_retry_seconds))
         self.retry_interval = max(0.1, float(retry_interval))
+        self.stats_lock = threading.Lock()
+        self.enqueued = 0
+        self.processed = 0
+        self.last_enqueued_monotonic = 0.0
+        self.last_processed_monotonic = 0.0
 
     @property
     def active(self):
@@ -207,6 +243,55 @@ class SysmonRealtimeBridge:
             self.worker.join(timeout=2.0)
         return True
 
+    def stats(self):
+        with self.stats_lock:
+            return {
+                "active": self.active,
+                "enqueued": int(self.enqueued),
+                "processed": int(self.processed),
+                "pending": max(0, int(self.enqueued) - int(self.processed)),
+                "dropped": int(self.dropped),
+                "last_enqueued_monotonic": float(self.last_enqueued_monotonic),
+                "last_processed_monotonic": float(self.last_processed_monotonic),
+            }
+
+    def drain(self, timeout=2.0, quiet_period=0.5):
+        """Wait for late Event Log callbacks and consume the queue before stop.
+
+        EvtSubscribe is asynchronous: the network packet can already be in the
+        external PCAP while its EID 3 callback is still pending. A bounded quiet
+        window preserves those tail events without keeping analysis shutdown
+        open indefinitely.
+        """
+        timeout = max(0.0, float(timeout))
+        quiet_period = max(0.05, min(float(quiet_period), timeout or 0.05))
+        started = time.monotonic()
+        deadline = started + timeout
+        previous = None
+        stable_since = started
+        while True:
+            snapshot = self.stats()
+            current = (snapshot["enqueued"], snapshot["processed"], snapshot["dropped"])
+            now = time.monotonic()
+            if current != previous:
+                previous = current
+                stable_since = now
+            if snapshot["pending"] == 0 and now - stable_since >= quiet_period:
+                snapshot.update(
+                    status="drained",
+                    duration_ms=round((now - started) * 1000.0, 3),
+                    quiet_period_ms=round(quiet_period * 1000.0, 3),
+                )
+                return snapshot
+            if now >= deadline:
+                snapshot.update(
+                    status="timeout" if snapshot["pending"] else "quiet_timeout",
+                    duration_ms=round((now - started) * 1000.0, 3),
+                    quiet_period_ms=round(quiet_period * 1000.0, 3),
+                )
+                return snapshot
+            time.sleep(min(0.05, max(0.0, deadline - now)))
+
     def _run(self):
         try:
             self._init_api()
@@ -234,10 +319,12 @@ class SysmonRealtimeBridge:
                 self.event_ids,
             )
 
-            while not self.stop_event.is_set():
+            while True:
                 try:
                     item = self.queue.get(timeout=0.25)
                 except queue.Empty:
+                    if self.stop_event.is_set():
+                        break
                     continue
 
                 if item is None:
@@ -252,6 +339,10 @@ class SysmonRealtimeBridge:
                         "[SysmonBridge] event callback processing failed",
                         exc_info=True,
                     )
+                finally:
+                    with self.stats_lock:
+                        self.processed += 1
+                        self.last_processed_monotonic = time.monotonic()
         except Exception as exc:
             self.last_error = str(exc)
             self.log.warning("[SysmonBridge] unavailable: %s", exc)
@@ -328,8 +419,12 @@ class SysmonRealtimeBridge:
             if xml_text:
                 try:
                     self.queue.put_nowait(xml_text)
+                    with self.stats_lock:
+                        self.enqueued += 1
+                        self.last_enqueued_monotonic = time.monotonic()
                 except queue.Full:
-                    self.dropped += 1
+                    with self.stats_lock:
+                        self.dropped += 1
                     if self.dropped in {1, 10, 100, 1000}:
                         self.log.warning(
                             "[SysmonBridge] event queue full; dropped=%d",

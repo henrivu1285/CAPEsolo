@@ -60,7 +60,7 @@
     }
   }
 
-  function renderCallsTable(calls) {
+  function renderCallsTable(calls, pid) {
     var html = [];
     html.push('<table class="table table-bordered" style="table-layout: fixed;">');
     html.push("<thead><tr>");
@@ -76,7 +76,7 @@
 
     for (var i = 0; i < calls.length; i++) {
       var call = calls[i] || {};
-      html.push('<tr class="' + escapeHtml(call.category || "") + '" id="call_' + escapeHtml(call.id || 0) + '">');
+      html.push('<tr class="' + escapeHtml(call.category || "") + '" id="call_' + escapeHtml(pid) + '_' + escapeHtml(call.id || 0) + '">');
       html.push("<td>" + escapeHtml(call.timestamp || "") + "</td>");
       html.push("<td>" + escapeHtml(call.thread_id || "") + "</td>");
       html.push("<td>" + escapeHtml(call.caller || "") + "<br>" + escapeHtml(call.parentcaller || "") + "</td>");
@@ -123,7 +123,7 @@
     var end = start + pageSize;
     var pageCalls = calls.slice(start, end);
 
-    callTable.innerHTML = renderCallsTable(pageCalls);
+    callTable.innerHTML = renderCallsTable(pageCalls, pid);
 
     var totalPages = Math.ceil(calls.length / pageSize);
     var pagers = container.querySelectorAll("ul.pagination");
@@ -132,8 +132,8 @@
     }
 
     // show pagination in default mode
-    var topNav = document.getElementById("top_pagination");
-    var bottomNav = document.getElementById("bottom_pagination");
+    var topNav = document.getElementById("top_pagination_" + pid);
+    var bottomNav = document.getElementById("bottom_pagination_" + pid);
     if (topNav) topNav.classList.remove("d-none");
     if (bottomNav) bottomNav.classList.remove("d-none");
   }
@@ -214,12 +214,12 @@
     if (!filtered.length) {
       callTable.innerHTML = '<div class="alert alert-info text-center">No calls matched the current filters.</div>';
     } else {
-      callTable.innerHTML = renderCallsTable(filtered);
+      callTable.innerHTML = renderCallsTable(filtered, pid);
     }
 
     // hide pagination in filtered mode (matches your prior behavior)
-    var topNav = document.getElementById("top_pagination");
-    var bottomNav = document.getElementById("bottom_pagination");
+    var topNav = document.getElementById("top_pagination_" + pid);
+    var bottomNav = document.getElementById("bottom_pagination_" + pid);
     if (topNav) topNav.classList.add("d-none");
     if (bottomNav) bottomNav.classList.add("d-none");
 
@@ -396,7 +396,7 @@
           </div>
         </div>
 
-        <nav id="top_pagination" aria-label="Page navigation" class="mb-2">
+        <nav id="top_pagination_{{ process.process_id }}" aria-label="Page navigation" class="mb-2">
           <ul class="pagination justify-content-center"></ul>
         </nav>
 
@@ -413,7 +413,7 @@
               </thead>
               <tbody>
                 {% for call in process.calls[:100] %}
-                  <tr class="{{ call.category|default('') }}" id="call_{{ call.id|default(0) }}">
+                  <tr class="{{ call.category|default('') }}" id="call_{{ process.process_id }}_{{ call.id|default(0) }}">
                     {# You can swap this to include your _api_call.html if you want #}
                     <td>{{ call.timestamp|default('') }}</td>
                     <td>{{ call.thread_id|default('') }}</td>
@@ -437,7 +437,7 @@
           {% endif %}
         </div>
 
-        <nav id="bottom_pagination" aria-label="Page navigation" class="mt-2">
+        <nav id="bottom_pagination_{{ process.process_id }}" aria-label="Page navigation" class="mt-2">
           <ul class="pagination justify-content-center"></ul>
         </nav>
 

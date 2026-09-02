@@ -23,11 +23,12 @@ import configparser
 import logging
 import os
 import sys
+from contextlib import suppress
 
 import wx
 import wx.grid as gridlib
 
-from CAPEsolo.capelib.config_paths import config_paths
+from CAPEsolo.capelib.config_paths import config_paths, user_config_path
 
 log = logging.getLogger(__name__)
 
@@ -245,6 +246,43 @@ def _read_theme_name() -> str:
     return config.get("gui", "theme", fallback=DEFAULT_THEME).strip().lower()
 
 
+def _write_theme_name(mode: str) -> None:
+    """Persist the palette to the user cfg.ini, the copy pip upgrades never overwrite.
+
+    Read-modify-write so the rest of the user's settings survive, and best effort: a
+    read-only config directory must not stop the toggle working for the current session.
+    """
+    path = user_config_path()
+    config = configparser.ConfigParser()
+    with suppress(configparser.Error, OSError):
+        config.read(path)
+
+    if not config.has_section("gui"):
+        config.add_section("gui")
+    config.set("gui", "theme", mode)
+
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as handle:
+            config.write(handle)
+    except OSError as e:
+        log.warning("Could not save the theme setting to %s: %s", path, e)
+
+
+def ToggleTheme() -> str:
+    """Switch to the other palette and remember the choice. Returns the new mode.
+
+    Only the tokens change here. set_theme mutates them in place so anything that captured
+    one by value follows along, but widgets copied their colours when they were styled, so
+    the caller still has to re-walk its tree with apply_theme.
+    """
+    mode = LIGHT if is_dark() else DARK
+    set_theme(mode)
+    _write_theme_name(mode)
+
+    return mode
+
+
 def _init():
     """Select the palette and build all wx.Font objects. Called once after wx.App exists."""
     global _initialized
@@ -264,8 +302,9 @@ def _init():
 # Immersive Dark Mode for Windows Frame Title Bars
 # ---------------------------------------------------------------------------
 def apply_window_theme(frame):
-    """Set the title bar to match the active palette, for a wx.Frame on Windows."""
-    if isinstance(frame, wx.Frame):
+    """Set the title bar to match the active palette, for a top-level window (Frame or Dialog)
+    on Windows."""
+    if isinstance(frame, wx.TopLevelWindow):
         import ctypes
         hwnd = frame.GetHandle()
         try:
@@ -324,7 +363,7 @@ def apply_theme(widget):
     Theme based on each widget's type.
     """
     _init()
-    if isinstance(widget, wx.Frame):
+    if isinstance(widget, wx.TopLevelWindow):
         apply_window_theme(widget)
     _style_widget(widget)
     for child in widget.GetChildren():
@@ -426,6 +465,13 @@ def _style_widget(w):
         w.SetFont(FONT_CODE)
         return
 
+    # --- TreeCtrl (process tree window) ---
+    if isinstance(w, wx.TreeCtrl):
+        w.SetBackgroundColour(BG_INPUT)
+        w.SetForegroundColour(FG_PRIMARY)
+        w.SetFont(FONT_UI)
+        return
+
     # --- Buttons (Support both wx.Button and generic GenButton) ---
     import wx.lib.buttons as buttons
     if isinstance(w, (wx.Button, buttons.GenButton)):
@@ -434,6 +480,13 @@ def _style_widget(w):
         if any(x in label for x in ["kill", "terminate", "delete", "cancel", "stop"]):
             w.SetBackgroundColour(BG_RED_ALERT)
             w.SetForegroundColour(FG_RED_ALERT)
+        elif "launch" in label:
+            # The counterpart to Kill: the one control that starts a detonation. Shares
+            # ACCENT_GREEN with the debugger's CIP row rather than adding a token, because
+            # that colour is already defined as a fill sat underneath FG_PRIMARY and is
+            # tuned for both palettes - retune it there and this follows.
+            w.SetBackgroundColour(ACCENT_GREEN)
+            w.SetForegroundColour(FG_PRIMARY)
         else:
             w.SetBackgroundColour(BG_BUTTON)
             w.SetForegroundColour(FG_PRIMARY)
@@ -497,8 +550,8 @@ def _style_widget(w):
         w.SetSelectionForeground(FG_SELECT)
         return
 
-    # --- Frames (secondary windows) ---
-    if isinstance(w, wx.Frame):
+    # --- Top-level windows (secondary frames and dialogs) ---
+    if isinstance(w, wx.TopLevelWindow):
         w.SetBackgroundColour(BG_MAIN)
         w.SetForegroundColour(FG_PRIMARY)
         return

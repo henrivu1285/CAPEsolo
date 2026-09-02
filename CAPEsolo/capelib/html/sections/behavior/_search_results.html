@@ -43,7 +43,7 @@
                                 </tr>
 
                                 {% for sign in match.signs %}
-                                    <tr class="{{ sign.category }}" id="call_{{ sign.id }}">
+                                    <tr class="{{ sign.category }}" id="search_call_{{ match.process.process_id }}_{{ sign.id }}">
                                         {% set call = sign %}
                                         {% include "sections/behavior/_api_call.html" %}
                                         <td class="text-center">

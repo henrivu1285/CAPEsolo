@@ -42,6 +42,9 @@ READY_TIMEOUT = 5.0
 # so without this the join would expire exactly as the drain finishes and escalate for
 # nothing.
 STOP_GRACE = 2.0
+# Reserve part of STOP_GRACE for the direct fallback. The old first join used
+# the entire shared deadline, making every later escalation a no-op.
+OWNER_STOP_GRACE = 1.0
 
 # How long a FILE upload may take to send its header lines. capemon writes them
 # immediately after connecting, so this only fires on a peer that has gone away.
@@ -73,6 +76,11 @@ RESULT_UPLOADABLE = (
     b"CAPE",
     b"aux_",
     b"aux_/amsi",
+    b"aux_/js_console",
+    # sslkeylogfile uploads to "aux/sslkeylogfile/sslkeys.log". Every aux_ subdirectory has to
+    # be listed individually - the check is an exact match on the directory, not a prefix - so
+    # without this the TLS secrets were refused and the client disconnected.
+    b"aux_/sslkeylogfile",
     b"curtain",
     b"debugger",
     b"tlsdump",
@@ -866,7 +874,9 @@ class ResultServer(metaclass=Singleton):
             # would never take effect. An explicit argument still wins.
             drain_timeout = self.drain_timeout
         log.info("Shutting down the server...")
-        deadline = time.monotonic() + drain_timeout + STOP_GRACE
+        started = time.monotonic()
+        owner_deadline = started + drain_timeout + OWNER_STOP_GRACE
+        deadline = started + drain_timeout + STOP_GRACE
 
         if not self.ready.wait(timeout=min(drain_timeout, READY_TIMEOUT)):
             log.warning("ResultServer never finished starting; shutting down what exists")
@@ -892,7 +902,7 @@ class ResultServer(metaclass=Singleton):
                 # drain on the thread that owns the hub, bounded by the stop_timeout
                 # do_run passed it.
                 self.hub.loop.run_callback_threadsafe(instance.close)
-                stopped = self._join(deadline)
+                stopped = self._join(owner_deadline)
             except Exception:
                 log.exception("Threadsafe ResultServer stop failed, falling back")
 
@@ -913,10 +923,20 @@ class ResultServer(metaclass=Singleton):
         if stopped:
             log.info("Resultserver shut down.")
         else:
-            log.error(
-                "ResultServer thread still alive after %.1fs; in-flight uploads may be "
-                "incomplete", drain_timeout
-            )
+            if STATS.incomplete:
+                log.error(
+                    "ResultServer thread still alive after %.1fs and %d transfer(s) "
+                    "are incomplete",
+                    drain_timeout,
+                    STATS.incomplete,
+                )
+            else:
+                log.warning(
+                    "ResultServer thread still alive after %.1fs, but all %d recorded "
+                    "transfer(s) are complete; shutdown state is uncertain",
+                    drain_timeout,
+                    STATS.complete,
+                )
 
         self._report_summary()
         self._forget_instance()

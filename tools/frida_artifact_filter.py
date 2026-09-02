@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""P3.2 non-destructive provenance classifier for CAPEsolo artifacts.
+"""P3.2.3.14 non-destructive provenance classifier for CAPEsolo artifacts.
 
 P3.2 changes over P3.1:
   * logical run scoping (current P3 runtime / run_id only),
@@ -20,13 +20,13 @@ from pathlib import Path
 from typing import Iterable
 
 HERE = Path(__file__).resolve().parent
-if str(HERE) not in sys.path:
-    sys.path.insert(0, str(HERE))
+PROJECT_ROOT = HERE.parent
+for search_path in (HERE, PROJECT_ROOT):
+    if str(search_path) not in sys.path:
+        sys.path.insert(0, str(search_path))
 
-try:
-    from p3_run_scope import current_run_pids, load_runtime_for_analysis, select_run_log
-except ImportError:  # versioned standalone fallback
-    from p3_run_scope_p32 import current_run_pids, load_runtime_for_analysis, select_run_log
+from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION, product_version_for_runtime
+from p3_run_scope import current_run_pids, load_runtime_for_analysis, select_run_log
 
 FRIDA_SIGNATURES = (
     b"frida_agent_main",
@@ -36,6 +36,17 @@ FRIDA_SIGNATURES = (
     b"pipe:role=client,name=frida-",
     b"gum-js-loop",
 )
+
+LOADER_STUB_MARKERS = (
+    b"VirtualAlloc",
+    b"VirtualProtect",
+    b"LoadLibrary",
+    b"GetProcAddress",
+    b"UnmapViewOfFile",
+    b"WriteProcessMemory",
+    b"CreateRemoteThread",
+)
+MIN_LOADER_STUB_MARKERS = 3
 
 BASE_RE = re.compile(r";\?(0x[0-9a-fA-F]+);\?")
 DETAIL_RANGE_RE = re.compile(
@@ -57,6 +68,7 @@ ATTACH_START_RE = re.compile(r"\[pid=(\d+)\].*Attaching Frida", re.I)
 ATTACH_SUCCESS_RE = re.compile(r'"kind":"frida_attach".*?"pid":(\d+).*?"status":"success"', re.I)
 AGENT_PID_RE = re.compile(r"\b(\d+):\s+DLL loaded at .*?frida-agent", re.I)
 ARTIFACT_UPLOAD_RE = re.compile(r"Uploading file .*? to CAPE[\\/](?P<sha>[0-9a-fA-F]{64})", re.I)
+P3_EVIDENCE_RE = re.compile(r"\[P3Evidence\]\s+(\{.*\})\s*$")
 
 
 def load_manifest(path: Path) -> list[dict]:
@@ -153,24 +165,66 @@ def parse_instrumentation_ranges_text(log_text: str) -> list[dict]:
 
 
 def parse_temporal_provenance_text(log_text: str) -> dict:
-    """Build conservative per-PID Frida bootstrap windows and artifact times."""
+    """Build per-PID Frida attach windows with strong-progress awareness.
+
+    P3.2.3.5 distinguishes a mere attach *attempt* from evidence that Frida
+    actually progressed into the target (successful attach or a tracked
+    frida-helper remote-thread event).  Timing around a failed/aborted attempt is
+    annotation-only and must not by itself label a non-PE artifact as possible
+    instrumentation.
+    """
     starts: dict[int, datetime] = {}
     ends: dict[int, datetime] = {}
+    strong: dict[int, bool] = {}
+    outcomes: dict[int, str] = {}
     artifact_times: dict[str, datetime] = {}
+
     for line in log_text.splitlines():
         ts = _parse_log_ts(line)
         if ts is None:
             continue
+
         m = ATTACH_START_RE.search(line)
         if m:
             starts.setdefault(int(m.group(1)), ts)
+
+        # Structured P3 evidence is preferred because P3.2.3.5 gives every
+        # attach attempt exactly one terminal outcome.
+        em = P3_EVIDENCE_RE.search(line)
+        if em:
+            try:
+                event = json.loads(em.group(1))
+            except Exception:
+                event = None
+            if isinstance(event, dict):
+                kind = str(event.get("kind") or "")
+                try:
+                    pid = int(event.get("pid") or 0)
+                except Exception:
+                    pid = 0
+                if pid > 0 and kind == "frida_attach_start":
+                    starts.setdefault(pid, ts)
+                elif pid > 0 and kind == "frida_attach":
+                    status = str(event.get("status") or "")
+                    outcomes[pid] = status
+                    ends[pid] = max(ends.get(pid, ts), ts)
+                    if status == "success":
+                        strong[pid] = True
+                        ends[pid] = max(ends.get(pid, ts), ts + timedelta(seconds=2.0))
+                elif pid > 0 and kind == "frida_helper_seen":
+                    strong[pid] = True
+                    ends[pid] = max(ends.get(pid, ts), ts + timedelta(seconds=2.0))
+
+        # Backward compatibility for P3.2/P3.2.3 logs.
         m = ATTACH_SUCCESS_RE.search(line)
         if m:
             pid = int(m.group(1))
+            strong[pid] = True
             ends[pid] = max(ends.get(pid, ts), ts + timedelta(seconds=2.0))
         m = AGENT_PID_RE.search(line)
         if m:
             pid = int(m.group(1))
+            strong[pid] = True
             ends[pid] = max(ends.get(pid, ts), ts + timedelta(seconds=2.0))
         m = ARTIFACT_UPLOAD_RE.search(line)
         if m:
@@ -178,10 +232,21 @@ def parse_temporal_provenance_text(log_text: str) -> dict:
 
     windows = {}
     for pid, start in starts.items():
+        is_strong = bool(strong.get(pid))
+        # Keep the historical five-second upper window only as an annotation
+        # window for weak attempts. Strong progress may extend two seconds past
+        # the helper/success anchor.
         end = ends.get(pid, start + timedelta(seconds=5.0))
         if end < start:
             end = start + timedelta(seconds=5.0)
-        windows[pid] = {"start": start, "end": end}
+        if not is_strong:
+            end = min(end, start + timedelta(seconds=5.0))
+        windows[pid] = {
+            "start": start,
+            "end": end,
+            "strong_progress": is_strong,
+            "outcome": outcomes.get(pid),
+        }
     return {"windows": windows, "artifact_times": artifact_times}
 
 
@@ -208,21 +273,49 @@ def find_artifact_path(item: dict, analysis_dir: Path, cape_dir: Path) -> Path |
     return None
 
 
-def scan_frida_signatures(path: Path | None, max_bytes: int = 8 * 1024 * 1024) -> list[str]:
+def _scan_bytes(path: Path | None, max_bytes: int = 8 * 1024 * 1024) -> bytes:
     if path is None:
-        return []
+        return b""
     try:
         with path.open("rb") as fh:
-            data = fh.read(max_bytes)
+            return fh.read(max_bytes)
     except OSError:
+        return b""
+
+
+def _contains_ascii_or_utf16le(data: bytes, marker: bytes) -> bool:
+    lower = data.lower()
+    marker_lower = marker.lower()
+    if marker_lower in lower:
+        return True
+    try:
+        utf16 = marker.decode("ascii").encode("utf-16le").lower()
+    except Exception:
+        return False
+    return utf16 in lower
+
+
+def scan_frida_signatures(path: Path | None, max_bytes: int = 8 * 1024 * 1024) -> list[str]:
+    data = _scan_bytes(path, max_bytes=max_bytes)
+    if not data:
         return []
 
     found = []
-    lower = data.lower()
     for sig in FRIDA_SIGNATURES:
-        if sig.lower() in lower:
+        if _contains_ascii_or_utf16le(data, sig):
             found.append(sig.decode("ascii", errors="replace"))
     return found
+
+
+def scan_loader_stub_markers(path: Path | None, max_bytes: int = 8 * 1024 * 1024) -> list[str]:
+    data = _scan_bytes(path, max_bytes=max_bytes)
+    if not data:
+        return []
+    return [
+        marker.decode("ascii", errors="replace")
+        for marker in LOADER_STUB_MARKERS
+        if _contains_ascii_or_utf16le(data, marker)
+    ]
 
 
 def artifact_is_pe(item: dict, path: Path | None) -> bool:
@@ -259,6 +352,7 @@ def classify_item(item: dict, ranges: list[dict], temporal: dict, analysis_dir: 
     signatures = scan_frida_signatures(artifact_path)
     if signatures:
         reasons.append({"kind": "frida_runtime_signature", "signatures": signatures})
+    loader_markers = scan_loader_stub_markers(artifact_path)
 
     basename = Path(str(item.get("path") or "")).name.lower()
     artifact_time = temporal.get("artifact_times", {}).get(basename)
@@ -272,24 +366,68 @@ def classify_item(item: dict, ranges: list[dict], temporal: dict, analysis_dir: 
             continue
         if not (window["start"] <= artifact_time <= window["end"]):
             continue
+        strong_progress = bool(window.get("strong_progress"))
         temporal_reason = {
-            "kind": "frida_bootstrap_temporal_proximity",
+            "kind": (
+                "frida_bootstrap_temporal_proximity"
+                if strong_progress
+                else "frida_attach_attempt_temporal_proximity"
+            ),
             "pid": pid,
             "artifact_time": artifact_time.isoformat(),
             "window_start": window["start"].isoformat(),
             "window_end": window["end"].isoformat(),
+            "attach_outcome": window.get("outcome"),
+            "strong_progress": strong_progress,
         }
-        # P3.2: a real PE payload is allowed to be unpacked immediately after
-        # Frida attaches. Timing alone must not downgrade it to instrumentation.
+        # P3.2.3.5 never downgrades an artifact from timing alone.  Timing is
+        # useful provenance context but cannot distinguish malware unpacking
+        # from Frida bootstrap without content or address-range evidence.
         if is_pe:
             temporal_reason["effect"] = "annotation_only_pe_payload"
-            annotations.append(temporal_reason)
+        elif not strong_progress:
+            temporal_reason["effect"] = "annotation_only_attach_attempt"
         else:
-            possible_reasons.append(temporal_reason)
+            temporal_reason["effect"] = "annotation_only_timing"
+        annotations.append(temporal_reason)
 
     instrumentation = bool(reasons)
     instrumentation_possible = bool(possible_reasons) and not instrumentation
-    confidence = "high" if instrumentation else ("possible" if instrumentation_possible else "unclassified")
+    malware_candidate = bool(
+        len(loader_markers) >= MIN_LOADER_STUB_MARKERS and not instrumentation
+    )
+    if malware_candidate:
+        annotations.append({
+            "kind": "loader_stub_signature",
+            "markers": loader_markers,
+            "minimum_markers": MIN_LOADER_STUB_MARKERS,
+            "effect": "malware_candidate_content_evidence",
+        })
+    timing_only = bool(
+        any(
+            str(item.get("effect") or "").startswith("annotation_only")
+            for item in annotations
+            if isinstance(item, dict)
+        )
+        and not instrumentation
+        and not instrumentation_possible
+        and not malware_candidate
+    )
+    if instrumentation:
+        classification = "instrumentation_confirmed"
+        confidence = "high"
+    elif instrumentation_possible:
+        classification = "instrumentation_possible"
+        confidence = "possible"
+    elif malware_candidate:
+        classification = "malware_candidate"
+        confidence = "candidate"
+    elif timing_only:
+        classification = "instrumentation_possible_timing_only"
+        confidence = "unclassified"
+    else:
+        classification = "unclassified"
+        confidence = "unclassified"
     return {
         "path": item.get("path"),
         "pids": item.get("pids", []),
@@ -302,6 +440,9 @@ def classify_item(item: dict, ranges: list[dict], temporal: dict, analysis_dir: 
         "is_pe": is_pe,
         "instrumentation": instrumentation,
         "instrumentation_possible": instrumentation_possible,
+        "instrumentation_possible_timing_only": timing_only,
+        "malware_candidate": malware_candidate,
+        "classification": classification,
         "confidence": confidence,
         "reasons": reasons,
         "possible_reasons": possible_reasons,
@@ -365,6 +506,8 @@ def classify_analysis(
 
     result = {
         "schema": "capesolo-frida-artifacts/3.2",
+        "version": product_version_for_runtime(runtime),
+        "processor_version": PRODUCT_VERSION,
         "run_id": (runtime or {}).get("run_id"),
         "run_scope": run_scope,
         "manifest_scope": manifest_scope,
@@ -390,6 +533,8 @@ def classify_analysis(
         "artifacts": len(classifications),
         "instrumentation": sum(bool(c["instrumentation"]) for c in classifications),
         "possible": sum(bool(c.get("instrumentation_possible")) for c in classifications),
+        "timing_only": sum(bool(c.get("instrumentation_possible_timing_only")) for c in classifications),
+        "malware_candidates": sum(bool(c.get("malware_candidate")) for c in classifications),
         "temporal_annotations": sum(bool(c.get("annotations")) for c in classifications),
         "retained": sum(not bool(c["instrumentation"]) for c in classifications),
         "retained_pe": sum((not bool(c["instrumentation"])) and bool(c.get("is_pe")) for c in classifications),

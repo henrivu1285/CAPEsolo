@@ -7,6 +7,7 @@
             {% set tab_name = 'static' %}
             {% if results.target %}
                 {% set file = results.target %}
+                {% set file_scope = 'target' %}
                 {% include "generic/_file_info.html" %}
             {% endif %}
         </div>

@@ -36,17 +36,19 @@ class NetworkHTTPPOST(Signature):
     def on_complete(self):
         safelist = [
             "microsoft.com",
-            "windowsupdate\.com",
+            "windowsupdate.com",
             "adobe.com",
         ]
 
         if "network" in self.results and "http" in self.results["network"]:
             for http in self.results["network"]["http"]:
-                if any(safelisted in http["host"] for safelisted in safelist):
+                if http.get("signature_eligible") is False:
+                    continue
+                if any(safelisted in http.get("host", "") for safelisted in safelist):
                     continue
 
-                if http["method"] == "POST":
-                    request = "%s %s" % (http["method"], http["uri"])
+                if http.get("method") == "POST":
+                    request = "%s %s" % (http.get("method"), http.get("uri", ""))
                     self.data.append({"request": request})
 
         if len(self.data) > 0:
@@ -73,9 +75,9 @@ class NetworkCnCHTTP(Signature):
 
     def run(self):
         whitelist = [
-            "^http://.*\.microsoft\.com/.*",
-            "^http://.*\.windowsupdate\.com/.*",
-            "http://.*\.adobe\.com/.*",
+            r"^http://.*\.microsoft\.com/.*",
+            r"^http://.*\.windowsupdate\.com/.*",
+            r"http://.*\.adobe\.com/.*",
         ]
 
         # HTTP request Features. Done like this due to for loop appending data each time instead of once so we wait to end of checks to add summary of anomalies
@@ -91,35 +93,44 @@ class NetworkCnCHTTP(Signature):
 
         if "network" in self.results and "http" in self.results["network"]:
             for req in self.results["network"]["http"]:
+                if req.get("signature_eligible") is False:
+                    continue
                 is_whitelisted = False
                 for white in whitelist:
-                    if re.match(white, req["uri"], re.IGNORECASE):
+                    if re.match(white, req.get("uri", ""), re.IGNORECASE):
                         is_whitelisted = True
 
                 # Check HTTP features
-                request = req["uri"]
-                ip = re.compile("^http\:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
-                if not is_whitelisted and req["method"] == "POST" and "Referer:" not in req["data"]:
+                request = req.get("uri", "")
+                request_score = 0
+                data = req.get("data", "")
+                ip = re.compile(r"^http://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
+                if not is_whitelisted and req.get("method") == "POST" and "Referer:" not in data:
                     post_noreferer = True
                     cnc_score += 1
+                    request_score += 1
 
-                if not is_whitelisted and req["method"] == "POST" and "User-Agent:" not in req["data"]:
+                if not is_whitelisted and req.get("method") == "POST" and "User-Agent:" not in data:
                     post_nouseragent += 1
                     cnc_score += 1
+                    request_score += 1
 
-                if not is_whitelisted and req["method"] == "GET" and "User-Agent:" not in req["data"]:
+                if not is_whitelisted and req.get("method") == "GET" and "User-Agent:" not in data:
                     get_nouseragent = True
                     cnc_score += 1
+                    request_score += 1
 
-                if not is_whitelisted and req["version"] == "1.0":
+                if not is_whitelisted and req.get("version") == "1.0":
                     version1 = True
                     cnc_score += 1
+                    request_score += 1
 
                 if not is_whitelisted and ip.match(request):
                     iphost = True
                     cnc_score += 1
+                    request_score += 1
 
-                if not is_whitelisted and cnc_score > 0:
+                if not is_whitelisted and request_score > 0:
                     if suspectrequest.count(request) == 0:
                         suspectrequest.append(request)
 
@@ -162,7 +173,7 @@ class NetworkIPEXE(Signature):
     minimum = "1.2"
 
     def run(self):
-        indicator = "(https?://)?\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}.*\.exe"
+        indicator = r"(https?://)?\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}.*\.exe"
         # Downloading an EXE from an IP is ALWAYS SKETCHY
         matches = self.check_url(pattern=indicator, regex=True, all=True)
         if matches:

@@ -23,6 +23,9 @@ Scoring defaults:
 - byte pattern: profile-provided score, default 50
 
 This module performs read-only matching; it never modifies the sample.
+
+P3.2.3 adds ``target_path`` so a runtime-known root process can be matched
+without considering unrelated sibling files in a shared malware directory.
 """
 
 from __future__ import annotations
@@ -80,7 +83,18 @@ def _read_pattern(path: Path, offset: int, size: int) -> bytes:
         return b""
 
 
-def _candidate_files(analysis_dir: str | os.PathLike | None, target_hint: str = "") -> list[Path]:
+def _candidate_files(analysis_dir: str | os.PathLike | None, target_hint: str = "", target_path: str | os.PathLike | None = None) -> list[Path]:
+    # P3.2.3: once the actual root executable is known, resolve *only* that
+    # file. This prevents an unrelated file in a shared malware directory from
+    # selecting a sample-specific profile for the process CAPE actually ran.
+    if target_path:
+        exact = Path(str(target_path))
+        try:
+            if exact.is_file():
+                return [exact]
+        except OSError:
+            pass
+
     if not analysis_dir:
         return []
     root = Path(str(analysis_dir))
@@ -183,6 +197,7 @@ def resolve_profile(
     requested: str = "auto",
     target_hint: str = "",
     fallback: str = "generic",
+    target_path: str | os.PathLike | None = None,
 ) -> dict:
     """Resolve the Frida profile and return a structured selection record.
 
@@ -203,7 +218,7 @@ def resolve_profile(
         }
 
     pdir = Path(profile_dir)
-    candidates = _candidate_files(analysis_dir, target_hint=target_hint)
+    candidates = _candidate_files(analysis_dir, target_hint=target_hint, target_path=target_path)
     sha_cache: dict[Path, str] = {}
     best: dict | None = None
 
@@ -249,6 +264,6 @@ def resolve_profile(
         "selected": fallback,
         "source": "fallback",
         "score": 0,
-        "candidate": str(candidates[0]) if candidates else None,
+        "candidate": str(candidates[0]) if (target_path and candidates) else None,
         "reasons": ["no_profile_reached_min_score"],
     }

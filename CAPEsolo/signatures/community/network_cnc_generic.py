@@ -32,7 +32,7 @@ class NetworkCountryDistribution(Signature):
         countries = []
         if "network" in self.results and "hosts" in self.results["network"]:
             for host in self.results["network"]["hosts"]:
-                country = host["country_name"]
+                country = host.get("country_name", "")
                 if country and country not in countries:
                     countries.append(country)
 
@@ -62,8 +62,8 @@ class NetworkMultipleDirectIPConnections(Signature):
         ips = []
         if "network" in self.results and "hosts" in self.results["network"]:
             for host in self.results["network"]["hosts"]:
-                ip = host["ip"]
-                hostname = host["hostname"]
+                ip = host.get("ip", "")
+                hostname = host.get("hostname", "")
                 if ip not in ips and not hostname and not ip.startswith(("10.", "172.16.", "192.168.")):
                     ips.append(ip)
                     count += 1

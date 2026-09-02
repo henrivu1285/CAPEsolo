@@ -27,7 +27,6 @@ from urllib.request import urlopen
 
 from lib.api.process import Process
 from lib.common.abstracts import Auxiliary, Package
-from modules.auxiliary import frida_muncher
 from lib.common.constants import (
     CAPEMON32_NAME,
     CAPEMON64_NAME,
@@ -570,9 +569,13 @@ class Analyzer:
         def configure_aux_from_data(instance):
             # Do auxiliary module configuration stored in 'data/auxiliary/<package_name>'
             _class = type(instance)
+            configure = getattr(instance, "configure_from_data", None)
+            if not callable(configure):
+                log.debug("module %s does not support data configuration, ignoring", _class.__name__)
+                return
             try:
                 log.debug("attempting to configure '%s' from data", _class.__name__)
-                instance.configure_from_data()
+                configure()
             except ModuleNotFoundError:
                 # let it go, not every module is configurable from data
                 log.debug("module %s does not support data configuration, ignoring", _class.__name__)

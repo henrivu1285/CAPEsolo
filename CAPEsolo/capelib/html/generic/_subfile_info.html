@@ -241,7 +241,7 @@
                     <a class="btn btn-secondary btn-sm" data-bs-toggle="collapse" href="#flare_capa_{{sub_file.sha256}}" role="button" aria-expanded="false" aria-controls="flare_capa_{{sub_file.sha256}}">FLARE CAPA</a>
                 {% endif %}
                 {% if sub_file.strings %}
-                    <a class="btn btn-secondary btn-sm" data-bs-toggle="collapse" href="#strings_{{sub_file.sha256}}" role="button" aria-expanded="false" aria-controls="strings_{{sub_file.sha256}}"  data-bs-toggle="tooltip" title="Display strings"><span class="fas fa-envelope-open-text"></span> Strings</a>
+                    <a class="btn btn-secondary btn-sm" data-bs-toggle="collapse" href="#sub_strings_{{sub_file.sha256}}" role="button" aria-expanded="false" aria-controls="sub_strings_{{sub_file.sha256}}" data-bs-toggle="tooltip" title="Display strings"><span class="fas fa-envelope-open-text"></span> Strings</a>
                 {% endif %}
                 {% if sub_file.floss %}
                     <a class="btn btn-secondary btn-sm" data-bs-toggle="collapse" href="#floss_{{sub_file.sha256}}" role="button" aria-expanded="false" aria-controls="floss_{{sub_file.sha256}}"  data-bs-toggle="tooltip" title="Display floss strings"><span class="fas fa-envelope-open-text"></span> Floss</a>
@@ -296,7 +296,7 @@
         {% if sub_file.strings %}
             <tr>
                 <th></th><td>
-                <div class="collapse" id="strings_{{sub_file.sha256}}">
+                <div class="collapse" id="sub_strings_{{sub_file.sha256}}">
                     <div>
                     {{sub_file.strings|safe}}
                     </div>

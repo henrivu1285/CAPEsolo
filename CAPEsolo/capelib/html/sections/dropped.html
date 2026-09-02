@@ -6,6 +6,7 @@
     {% if results.dropped %}
         <div id="accordionDroppedFiles">
         {% for file in results.dropped %}
+            {% set file_scope = 'dropped_' ~ loop.index %}
             <div class="card mt-2">
                 <div class="card-header" id="headingDroppedFile{{loop.index}}">
                     <h5 class="mb-0">

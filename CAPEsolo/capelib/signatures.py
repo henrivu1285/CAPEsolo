@@ -1034,6 +1034,11 @@ class Signature:
             new_data=self.new_data,
             alert=self.alert,
             families=self.families,
+            # Preserve technique metadata in report.json. Older CAPEsolo builds
+            # accumulated this internally but discarded it before reporting,
+            # which made deterministic ATT&CK mapping impossible downstream.
+            ttps=list(self.ttps or []),
+            mbcs=list(self.mbcs or []),
         )
 
 
@@ -1289,3 +1294,7 @@ class RunSignatures:
 
         # Sort the matched signatures by their severity level.
         matched.sort(key=lambda key: key["severity"])
+        self.results["signatures"] = matched
+        self.results["ttps"] = sorted(self.ttps, key=lambda item: (item.get("ttp", ""), item.get("signature", "")))
+        self.results["mbcs"] = self.mbcs
+        return matched

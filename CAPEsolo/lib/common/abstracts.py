@@ -83,6 +83,14 @@ class Package:
         module_name = f"data.packages.{package_module_name}"
         try:
             m = importlib.import_module(module_name)
+        except ModuleNotFoundError as e:
+            # The optional data/packages tree is absent in CAPEsolo by
+            # default. Preserve ModuleNotFoundError so analyzer.py can treat
+            # this as "no optional configuration". A missing dependency from
+            # inside an existing module is still a real import warning.
+            if e.name == module_name or module_name.startswith(f"{e.name}."):
+                raise
+            raise ImportError(f"error importing {module_name}: {e}") from e
         except Exception as e:
             raise ImportError(f"error importing {module_name}: {e}") from e
 
@@ -216,6 +224,10 @@ class Package:
             return filepath
 
         newpath = os.path.join(self.curdir, os.path.basename(filepath))
+        # Skip a move onto itself: a sample downloaded straight into curdir (e.g. the download
+        # directory used with "Run sample from current directory") is already in place.
+        if os.path.normcase(os.path.abspath(newpath)) == os.path.normcase(os.path.abspath(filepath)):
+            return filepath
         shutil.move(filepath, newpath)
         return newpath
 
