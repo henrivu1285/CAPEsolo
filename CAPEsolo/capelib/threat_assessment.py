@@ -1,4 +1,4 @@
-"""Deterministic, evidence-weighted threat assessment for P3.2.3.14.
+"""Deterministic, evidence-weighted threat assessment for P3.2.3.15.
 
 The score is a triage aid, not a probability and not an antivirus verdict.  It
 uses unique ATT&CK technique families, completed state machines, signatures and
@@ -13,7 +13,7 @@ from typing import Any
 from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION
 
 SCHEMA = "capesolo-threat-assessment/1.0"
-SCORE_VERSION = "p32314-evidence-v1"
+SCORE_VERSION = "p32315-evidence-v2"
 THRESHOLDS = {
     "benign": {"minimum": 0, "maximum": 19},
     "suspicious": {"minimum": 20, "maximum": 59},
@@ -28,7 +28,8 @@ TECHNIQUE_WEIGHTS = {
     "T1105": 16, "T1547": 16, "T1543": 15, "T1053": 14, "T1573": 12,
     "T1685": 12, "T1070": 8, "T1140": 9, "T1027": 8, "T1112": 6,
     "T1036": 5, "T1518": 4, "T1057": 3, "T1012": 2, "T1622": 5,
-    "T1497": 4, "T1082": 3, "T1016": 3, "T1083": 2,
+    "T1497": 4, "T1082": 3, "T1016": 3, "T1083": 2, "T1113": 8,
+    "T1614": 2,
 }
 TACTIC_DEFAULTS = {
     "impact": 16, "credential-access": 15, "exfiltration": 14,
@@ -37,7 +38,7 @@ TACTIC_DEFAULTS = {
     "defense-impairment": 9, "defense-evasion": 8, "stealth": 8,
     "collection": 7, "execution": 6, "discovery": 3,
 }
-STATUS_FACTORS = {"observed": 1.0, "candidate": 0.4}
+STATUS_FACTORS = {"observed": 1.0, "candidate": 0.25, "attempted": 0.15}
 CONFIDENCE_FACTORS = {"high": 1.0, "medium": 0.85, "low": 0.6}
 
 
@@ -82,7 +83,7 @@ def _state_component(attack: dict) -> dict:
     signals = []
     seen = set()
     for state in attack.get("state_machine_evaluations") or []:
-        if not isinstance(state, dict) or state.get("complete") is not True:
+        if not isinstance(state, dict) or state.get("complete") is not True or state.get("scoreable") is False:
             continue
         rule_id = str(state.get("rule_id") or "")
         if not rule_id or rule_id in seen:

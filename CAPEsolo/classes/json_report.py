@@ -20,6 +20,7 @@ from CAPEsolo.capelib.network_summary import InterpretNetworkAbsence, NetworkSum
 from CAPEsolo.capelib.objects import File
 from CAPEsolo.capelib.parse_pe import PortableExecutable
 from CAPEsolo.capelib.path_utils import path_exists
+from CAPEsolo.capelib.report_redaction import redact_report_in_place
 from CAPEsolo.capelib.signatures import RunSignatures
 from CAPEsolo.capelib.threat_assessment import SCHEMA as THREAT_SCHEMA, assess_threat
 from CAPEsolo.capelib.utils import LoadFilesJson, extract_strings
@@ -271,7 +272,7 @@ def GetResults(targetFile, analysisDir, writeFile=True, includeStrings=True, pca
             "attack_version": ATTACK_VERSION,
             "domain": ATTACK_DOMAIN,
             "processor_version": PRODUCT_VERSION,
-            "summary": {"techniques": 0, "observed": 0, "candidate": 0, "insufficient_evidence": 0, "tactics": 0},
+            "summary": {"techniques": 0, "observed": 0, "attempted": 0, "candidate": 0, "insufficient_evidence": 0, "tactics": 0},
             "tactics": [],
             "mappings": [],
             "rejected_candidates": [],
@@ -291,6 +292,10 @@ def GetResults(targetFile, analysisDir, writeFile=True, includeStrings=True, pca
             "top_reasons": [], "quality": {"limitations": ["assessment_failed"]},
             "interpretation": f"Threat assessment failed: {e}",
         }
+    # Redaction is intentionally last: ATT&CK and scoring consume canonical
+    # evidence, while the shareable JSON/HTML receives only safe presentation
+    # values. Lossless behavior files in the analysis directory are untouched.
+    redact_report_in_place(results)
     if writeFile:
         return WriteJsonFile(results, analysisDir=analysisDir)
     else:

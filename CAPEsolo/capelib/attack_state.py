@@ -1,6 +1,6 @@
 """Small deterministic state-machine primitives for ATT&CK analytics.
 
-P3.2.3.14 normalizes sensor output before evaluating a rule.  These classes do
+P3.2.3.15 normalizes sensor output before evaluating a rule.  These classes do
 not inspect strings or API names; they consume semantic events produced by the
 sensor adapters in :mod:`mitre_attack`.
 """

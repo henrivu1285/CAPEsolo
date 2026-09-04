@@ -1,4 +1,4 @@
-"""Coverage-aware MITRE ATT&CK v19.2 mapper for P3.2.3.14.
+"""Coverage-aware MITRE ATT&CK v19.2 mapper for P3.2.3.15.
 
 ATT&CK metadata supplies catalog context and sensor requirements. Executable
 detection remains local, deterministic and testable: sensor records are first
@@ -16,12 +16,12 @@ from typing import Any, Optional
 from CAPEsolo.capelib.attack_state import EvidenceEvent, SequenceRule, evaluate_distinct, evaluate_sequence, parse_timestamp
 from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION
 
-SCHEMA = "capesolo-mitre-attack/1.2"
+SCHEMA = "capesolo-mitre-attack/1.3"
 ATTACK_VERSION = "19.2"
 ATTACK_DOMAIN = "enterprise-attack"
 ACTIVE_PLATFORM = "Windows"
 MAX_EVIDENCE = 12
-STATUS_RANK = {"insufficient_evidence": 0, "candidate": 1, "observed": 2}
+STATUS_RANK = {"insufficient_evidence": 0, "candidate": 1, "attempted": 2, "observed": 3}
 CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
 LEGACY_IDS = {
     "T1032": "T1573", "T1093": "T1055.012", "T1181": "T1055.011",
@@ -38,12 +38,16 @@ TACTIC_LABELS = {
     "lateral-movement": "Lateral Movement", "collection": "Collection",
     "command-and-control": "Command and Control", "exfiltration": "Exfiltration", "impact": "Impact",
 }
-SUPPORTED = {"T1003.001", "T1055", "T1055.004", "T1055.012", "T1071.001", "T1071.003", "T1071.004", "T1095", "T1547.001", "T1573"}
+SUPPORTED = {
+    "T1003.001", "T1055", "T1055.004", "T1055.012", "T1056.001",
+    "T1071.001", "T1071.003", "T1071.004", "T1095", "T1113",
+    "T1547.001", "T1573", "T1614",
+}
 PARTIAL = {
     "T1012", "T1016", "T1027", "T1027.002", "T1033", "T1036", "T1036.005", "T1036.007", "T1047",
-    "T1053.005", "T1056.001", "T1057", "T1059.001", "T1059.003", "T1059.005",
+    "T1053.005", "T1057", "T1059.001", "T1059.003", "T1059.005",
     "T1059.006", "T1059.007", "T1069.001", "T1069.002", "T1070.001", "T1070.004",
-    "T1070.006", "T1082", "T1083", "T1087.001", "T1105", "T1112", "T1113", "T1115",
+    "T1070.006", "T1082", "T1083", "T1087.001", "T1105", "T1112", "T1115",
     "T1123", "T1135", "T1140", "T1218.005", "T1218.010", "T1218.011", "T1497.001",
     "T1497.003", "T1518.001", "T1543.003", "T1622", "T1685", "T1685.005",
 }
@@ -158,6 +162,28 @@ def _arg(args: dict, *names: str) -> Any:
     return None
 
 
+def _image_format(path: Any, buffer: Any = None, raw_buffer: Any = None) -> Optional[str]:
+    """Return an image format only from a structured path or file signature."""
+    suffix = Path(_path(path).replace("\\", "/")).suffix.lower()
+    by_suffix = {".jpg": "jpeg", ".jpeg": "jpeg", ".png": "png", ".bmp": "bmp"}.get(suffix)
+    raw = str(raw_buffer or "").lower()
+    value = str(buffer or "").lower()
+    by_magic = None
+    if raw.startswith("ffd8ff") or value.startswith("\\xff\\xd8\\xff"):
+        by_magic = "jpeg"
+    elif raw.startswith("89504e470d0a1a0a") or value.startswith("\\x89png"):
+        by_magic = "png"
+    elif raw.startswith("424d") or value.startswith("bm"):
+        by_magic = "bmp"
+    return by_magic or by_suffix
+
+
+def _smtp_command(value: Any) -> Optional[str]:
+    """Parse an SMTP command verb from a structured send buffer."""
+    first = str(value or "").lstrip().split(None, 1)[0].upper().rstrip(":")
+    return first if first in {"EHLO", "HELO", "MAIL", "RCPT", "DATA", "AUTH", "RSET", "QUIT", "STARTTLS"} else None
+
+
 def _integer(value: Any) -> Optional[int]:
     if isinstance(value, bool):
         return int(value)
@@ -214,7 +240,7 @@ def prepare_clean_behavior(results: dict, analysis_path: Optional[Path]) -> dict
     """Run provenance before mapping because the external finalizer runs later."""
     if not analysis_path or not (results.get("behavior") or {}).get("processes"):
         return {"available": False, "reason": "analysis_path_or_behavior_missing"}
-    temporary = analysis_path / ".p32314_mitre_behavior_input.json"
+    temporary = analysis_path / ".p32315_mitre_behavior_input.json"
     try:
         from tools.frida_artifact_filter import classify_analysis
         from tools.frida_behavior_chains import build_behavior_chains
@@ -323,17 +349,22 @@ class AttackMapper:
         old = {(x.get("source"), x.get("pid"), x.get("timestamp"), x.get("api"), x.get("summary")) for x in row["evidence"]}
         if fp not in old and len(row["evidence"]) < MAX_EVIDENCE: row["evidence"].append(evidence)
 
-    def _calls(self):
+    def _all_calls(self):
         if self.clean_rows:
             for row in self.clean_rows:
                 call = row.get("call") or {}
-                if _call_completed(call): yield {"process_id": row.get("pid"), "process_name": row.get("process_name"), "module_path": row.get("process_path")}, call
+                yield {"process_id": row.get("pid"), "process_name": row.get("process_name"), "module_path": row.get("process_path")}, call
             return
         for process in (self.results.get("behavior") or {}).get("processes") or []:
             if not isinstance(process, dict): continue
             for call in process.get("calls") or []:
-                if not isinstance(call, dict) or not _call_completed(call) or call.get("filter_from_clean_view") is True: continue
+                if not isinstance(call, dict) or call.get("filter_from_clean_view") is True: continue
                 if call.get("provenance") == "framework_frida" or "frida-agent" in _text(call).lower(): continue
+                yield process, call
+
+    def _calls(self):
+        for process, call in self._all_calls():
+            if _call_completed(call):
                 yield process, call
 
     @staticmethod
@@ -427,7 +458,10 @@ class AttackMapper:
         )
 
     def _map_calls(self) -> None:
-        semantic = {key: [] for key in ("persistence", "injection", "lsass", "environment", "registry_query", "debugger")}
+        semantic = {key: [] for key in (
+            "persistence", "injection", "lsass", "environment", "registry_query", "debugger",
+            "keylogging", "screen_capture", "location", "smtp",
+        )}
         processes = (self.results.get("behavior") or {}).get("processes") or []
         module_paths = {_path(proc.get("module_path")) for proc in processes if isinstance(proc, dict) and proc.get("module_path")}
         handle_targets = {}
@@ -534,8 +568,76 @@ class AttackMapper:
             if low_api.startswith(("findfirstfile", "findnextfile")): self.add("T1083", "candidate", "medium", "discovery.files", "File/directory enumeration was observed; routine access remains possible.", evidence)
             if any(token in low_text for token in ("msmpeng", "windefend", "securityhealth", "avast", "kaspersky", "crowdstrike", "sentinelone")): self.add("T1518.001", "candidate", "medium", "discovery.security_software", "Security-product identifiers were queried.", evidence)
             if low_api in {"getclipboarddata", "openclipboard"}: self.add("T1115", "observed", "medium", "collection.clipboard", "Clipboard access was observed.", evidence)
-            if low_api in {"bitblt", "stretchblt", "printwindow"}: self.add("T1113", "observed", "high", "collection.screen_capture", "Screen-capture primitives were observed.", evidence)
-            if low_api in {"getasynckeystate", "getkeystate"} or (low_api in {"setwindowshookexa", "setwindowshookexw"} and any(token in low_text for token in ("wh_keyboard", "13"))): self.add("T1056.001", "candidate", "medium", "collection.keylogging", "Keyboard-state/hook activity was observed.", evidence)
+
+            # Keylogging is a structured state machine. HookIdentifier 2 is
+            # WH_KEYBOARD and 13 is WH_KEYBOARD_LL; ThreadId 0 makes the hook
+            # global. Other message hooks and integer-like text are excluded.
+            if low_api in {"setwindowshookexa", "setwindowshookexw"}:
+                hook_id = _integer(_arg(args, "HookIdentifier", "idHook"))
+                thread_id = _integer(_arg(args, "ThreadId", "dwThreadId"))
+                if hook_id in {2, 13}:
+                    kind = "keyboard_hook" if thread_id == 0 else "keyboard_hook_thread"
+                    semantic["keylogging"].append(EvidenceEvent(
+                        kind, pid, "keyboard", ts, evidence,
+                        {"hook_id": hook_id, "global": thread_id == 0},
+                    ))
+            elif low_api in {"getasynckeystate", "getkeystate"}:
+                semantic["keylogging"].append(EvidenceEvent("keyboard_poll", pid, "keyboard", ts, evidence))
+
+            file_path = _path(_arg(args, "HandleName", "FileName", "ObjectName", "lpFileName"))
+            if low_api in {"ntwritefile", "writefile"} and _basename(file_path) in {"key.bin", "keys.log", "keylog.dat"}:
+                semantic["keylogging"].append(EvidenceEvent("keylog_artifact", pid, "keyboard", ts, evidence, {"path": file_path}))
+
+            # Screen capture can be proven either by an explicit capture API or
+            # by repeated image materialization with an image magic signature.
+            if low_api in {"bitblt", "stretchblt", "printwindow"}:
+                semantic["screen_capture"].append(EvidenceEvent("screen_api", pid, "screen", ts, evidence, {"api": low_api}))
+            image_kind = _image_format(file_path)
+            if low_api in {"ntcreatefile", "createfilea", "createfilew"} and image_kind:
+                access = _integer(_arg(args, "DesiredAccess", "dwDesiredAccess"))
+                disposition = _integer(_arg(args, "CreateDisposition", "dwCreationDisposition"))
+                if (access is not None and access & 0x40000000) or disposition in {2, 4, 5}:
+                    semantic["screen_capture"].append(EvidenceEvent(
+                        "image_artifact", pid, "screen", ts, evidence,
+                        {"artifact_id": file_path, "format": image_kind},
+                    ))
+            if low_api in {"ntwritefile", "writefile"} and file_path:
+                image_kind = _image_format(
+                    file_path, _arg(args, "Buffer", "Data"),
+                    next((item.get("raw_value") for item in call.get("arguments") or [] if isinstance(item, dict) and str(item.get("name") or "").lower() in {"buffer", "data"}), None),
+                )
+                raw_buffer = next((item.get("raw_value") for item in call.get("arguments") or [] if isinstance(item, dict) and str(item.get("name") or "").lower() in {"buffer", "data"}), None)
+                if image_kind and (
+                    str(raw_buffer or "").lower().startswith(("ffd8ff", "89504e470d0a1a0a", "424d"))
+                    or str(_arg(args, "Buffer", "Data") or "").lower().startswith(("\\xff\\xd8\\xff", "\\x89png", "bm"))
+                ):
+                    semantic["screen_capture"].append(EvidenceEvent(
+                        "image_content", pid, "screen", ts, evidence,
+                        {"artifact_id": file_path, "format": image_kind},
+                    ))
+
+            location_apis = {
+                "getuserdefaultlcid": "locale", "getsystemdefaultlcid": "locale",
+                "getuserdefaultlocalename": "locale", "getsystemdefaultlocalename": "locale",
+                "gettimezoneinformation": "timezone", "getdynamictimezoneinformation": "timezone",
+                "getusergeoid": "geo", "getgeoinfoa": "geo", "getgeoinfow": "geo",
+            }
+            if low_api in location_apis:
+                semantic["location"].append(EvidenceEvent(
+                    "location_query", pid, "location", ts, evidence,
+                    {"location_type": location_apis[low_api], "api": low_api},
+                ))
+
+            if low_api in {"connect", "wsaconnect"}:
+                port = _integer(_arg(args, "port", "RemotePort", "sin_port"))
+                socket = str(_arg(args, "socket", "s", "Socket") or "unknown")
+                if port in {25, 465, 587}:
+                    semantic["smtp"].append(EvidenceEvent("smtp_connect_success", pid, socket, ts, evidence, {"port": port}))
+            if low_api in {"send", "wsasend"}:
+                command = _smtp_command(_arg(args, "buffer", "Buffer", "Data"))
+                socket = str(_arg(args, "socket", "s", "Socket") or "unknown")
+                if command:
+                    semantic["smtp"].append(EvidenceEvent("smtp_command_success", pid, socket, ts, evidence, {"command": command}))
             if low_api in {"waveinopen", "mcisendstringw", "mcisendstringa"}: self.add("T1123", "candidate", "medium", "collection.audio", "Audio-capture primitives were observed.", evidence)
             debugger_probe = low_api in {"isdebuggerpresent", "checkremotedebuggerpresent"}
             if low_api == "ntqueryinformationprocess":
@@ -553,6 +655,25 @@ class AttackMapper:
                 if numbers and max(numbers) >= 30000: self.add("T1497.003", "candidate", "medium", "evasion.long_delay", "A long execution delay was requested.", evidence)
             if any(token in low_text for token in ("windefend", "msmpeng", "set-mppreference", "disableantispyware")) and any(token in low_api + " " + low_text for token in ("terminate", "delete", "disable", "stop", "regset")):
                 self.add("T1562.001", "candidate", "medium", "evasion.impair_defenses", "An operation targeting security controls was observed.", evidence)
+
+        # Failed socket calls are excluded from the successful behavior view,
+        # but remain useful as explicit protocol attempts. Preserve them under
+        # a separate status so they cannot be mistaken for completed C2.
+        for process, call in self._all_calls():
+            if _call_completed(call):
+                continue
+            api = str(call.get("api") or ""); low_api = api.lower(); args = _args(call)
+            pid = str(process.get("process_id") or ""); ts = parse_timestamp(call.get("timestamp"))
+            evidence = self._evidence("behavior_api", f"{api}: {_text(call)}", process, call, args)
+            socket = str(_arg(args, "socket", "s", "Socket") or "unknown")
+            if low_api in {"connect", "wsaconnect"}:
+                port = _integer(_arg(args, "port", "RemotePort", "sin_port"))
+                if port in {25, 465, 587}:
+                    semantic["smtp"].append(EvidenceEvent("smtp_connect_attempt", pid, socket, ts, evidence, {"port": port}))
+            elif low_api in {"send", "wsasend"}:
+                command = _smtp_command(_arg(args, "buffer", "Buffer", "Data"))
+                if command:
+                    semantic["smtp"].append(EvidenceEvent("smtp_command_attempt", pid, socket, ts, evidence, {"command": command}))
 
         self._evaluate_states(semantic)
 
@@ -613,6 +734,140 @@ class AttackMapper:
         if debugger.get("complete"):
             self.state_evaluations.append(state)
             self.add("T1622", "observed", "medium", "sm.evasion.debugger_probe", "The analyzed process explicitly queried whether it was being debugged; a negative result does not negate the probe.", debugger["matched"][-1].evidence, state=state)
+
+        key_hook = evaluate_sequence(
+            SequenceRule("sm.collection.keylogging_hook", ("keyboard_hook",), ("keylog_artifact",), 600, require_same_target=False),
+            semantic["keylogging"],
+        )
+        state = self._state("sm.collection.keylogging_hook", key_hook, [
+            "successful SetWindowsHookExA/W", "HookIdentifier is WH_KEYBOARD or WH_KEYBOARD_LL",
+            "global ThreadId=0", "clean analyzed-process lineage",
+        ])
+        if key_hook.get("complete"):
+            self.state_evaluations.append(state)
+            self.add(
+                "T1056.001", "observed", "high", "sm.collection.keylogging_hook",
+                "A successful global keyboard hook directly established a keystroke-capture callback.",
+                key_hook["matched"][-1].evidence, state=state,
+            )
+        else:
+            weak = [event for event in semantic["keylogging"] if event.kind in {"keyboard_hook_thread", "keyboard_poll"}]
+            if weak:
+                result = {
+                    "complete": False, "matched": weak[:1], "missing": ["successful global keyboard hook"],
+                    "optional": [], "key": {"pid": weak[0].pid, "target": "keyboard"},
+                    "state_trace": [weak[0].kind], "optional_states": [],
+                }
+                state = self._state("sm.collection.keylogging_hook", result, [
+                    "keyboard API is necessary but not sufficient", "global capture state required for observed",
+                ])
+                self.state_evaluations.append(state)
+                self.add(
+                    "T1056.001", "candidate", "medium", "sm.collection.keylogging_precursor",
+                    "Keyboard polling or a thread-scoped hook was observed, but global keystroke capture was not proven.",
+                    weak[0].evidence, state=state,
+                )
+
+        capture_api = evaluate_sequence(
+            SequenceRule("sm.collection.screen_capture_api", ("screen_api",), (), 30, require_same_target=False),
+            semantic["screen_capture"],
+        )
+        if capture_api.get("complete"):
+            state = self._state("sm.collection.screen_capture_api", capture_api, [
+                "successful BitBlt/StretchBlt/PrintWindow", "clean analyzed-process lineage",
+            ])
+            self.state_evaluations.append(state)
+            self.add(
+                "T1113", "observed", "high", "sm.collection.screen_capture_api",
+                "A successful screen-capture primitive was observed.",
+                capture_api["matched"][-1].evidence, state=state,
+            )
+
+        image_artifacts = [event for event in semantic["screen_capture"] if event.kind == "image_artifact"]
+        image_content = [event for event in semantic["screen_capture"] if event.kind == "image_content"]
+        repeated_images = evaluate_distinct(
+            "sm.collection.screen_capture_artifacts", image_artifacts, 2, 300,
+            attribute="artifact_id", target_label="screen", missing_label="distinct image artifact(s)",
+        )
+        content = next((event for event in image_content if str(event.pid) == str((repeated_images.get("key") or {}).get("pid"))), None)
+        artifact_complete = bool(repeated_images.get("complete") and content)
+        artifact_result = {
+            "complete": artifact_complete,
+            "matched": list(repeated_images.get("matched") or []) + ([content] if content else []),
+            "missing": ([] if artifact_complete else list(repeated_images.get("missing") or []) + ([] if content else ["image magic signature"])),
+            "optional": [], "key": repeated_images.get("key"),
+            "state_trace": (["image_artifact"] * len(repeated_images.get("matched") or [])) + (["image_content"] if content else []),
+            "optional_states": [],
+        }
+        if artifact_result["matched"]:
+            state = self._state("sm.collection.screen_capture_artifacts", artifact_result, [
+                "same source PID", "two distinct image paths within 300 seconds",
+                "successful image write with JPEG/PNG/BMP magic", "not sandbox-generated screenshots",
+            ])
+            self.state_evaluations.append(state)
+            if artifact_complete:
+                self.add(
+                    "T1113", "observed", "high", "sm.collection.screen_capture_artifacts",
+                    "Repeated image materialization plus an image magic signature proved automated screen-image collection.",
+                    content.evidence, state=state,
+                )
+            else:
+                self.add(
+                    "T1113", "candidate", "medium", "sm.collection.screen_capture_artifacts_incomplete",
+                    "Image artifacts were created, but repetition and content gates for automated screen capture were incomplete.",
+                    artifact_result["matched"][-1].evidence, state=state,
+                )
+
+        location = evaluate_distinct(
+            "sm.discovery.system_location", semantic["location"], 2, 120,
+            attribute="location_type", target_label="location", missing_label="distinct location signal(s)",
+        )
+        if location.get("matched"):
+            state = self._state("sm.discovery.system_location", location, [
+                "structured locale/time-zone/geolocation API", "same source PID",
+                "two distinct signal types required for observed",
+            ])
+            self.state_evaluations.append(state)
+            self.add(
+                "T1614", "observed" if location.get("complete") else "candidate",
+                "medium" if location.get("complete") else "low", "sm.discovery.system_location",
+                "Multiple independent location signals were queried." if location.get("complete") else "A locale signal was queried, but one signal alone has a strong benign alternative.",
+                location["matched"][-1].evidence, state=state,
+            )
+
+        smtp_success = evaluate_sequence(
+            SequenceRule("sm.network.smtp_success", ("smtp_connect_success", "smtp_command_success"), (), 120),
+            semantic["smtp"],
+        )
+        if smtp_success.get("complete"):
+            state = self._state("sm.network.smtp_success", smtp_success, [
+                "successful connection to TCP 25/465/587", "same PID and socket",
+                "successful structured SMTP command", "ordered within 120 seconds",
+            ])
+            self.state_evaluations.append(state)
+            self.add(
+                "T1071.003", "observed", "high", "sm.network.smtp_success",
+                "A successful SMTP connection and protocol command were observed on the same socket.",
+                smtp_success["matched"][-1].evidence, state=state,
+            )
+
+        smtp_attempt = evaluate_sequence(
+            SequenceRule("sm.network.smtp_attempt", ("smtp_connect_attempt", "smtp_command_attempt"), (), 120),
+            semantic["smtp"],
+        )
+        if smtp_attempt.get("complete"):
+            state = self._state("sm.network.smtp_attempt", smtp_attempt, [
+                "failed connection to TCP 25/465/587", "same PID and socket",
+                "structured SMTP command attempted", "no completed SMTP session",
+            ])
+            state["outcome"] = "attempted"
+            state["scoreable"] = False
+            self.state_evaluations.append(state)
+            self.add(
+                "T1071.003", "attempted", "medium", "sm.network.smtp_attempt",
+                "The analyzed process attempted SMTP on a mail port, but the connection and send failed; this is not completed C2.",
+                smtp_attempt["matched"][-1].evidence, state=state,
+            )
 
     def _map_chains(self) -> None:
         chains = self.chains.get("chains") if isinstance(self.chains, dict) else []
@@ -766,24 +1021,32 @@ class AttackMapper:
 
     def build(self) -> dict:
         self._map_target_masquerading(); self._map_calls(); self._map_chains(); self._map_signatures(); self._map_network(); coverage = self._coverage()
-        confirmed = {technique for technique, row in self.mappings.items() if row.get("status") == "observed"}
-        rejected = [row for row in self.rejected if row.get("id") not in confirmed]
+        resolved = {technique for technique, row in self.mappings.items() if row.get("status") in {"observed", "attempted"}}
+        rejected = [row for row in self.rejected if row.get("id") not in resolved]
         mappings = sorted(self.mappings.values(), key=lambda row: (-STATUS_RANK.get(row.get("status"), 0), -CONFIDENCE_RANK.get(row.get("confidence"), 0), row.get("id", "")))
         tactic_rows = {}
         for mapping in mappings:
             for tactic in mapping.get("tactics") or ["uncategorized"]:
-                row = tactic_rows.setdefault(tactic, {"id": tactic, "name": TACTIC_LABELS.get(tactic, tactic.replace("-", " ").title()), "observed": 0, "candidate": 0, "techniques": []})
+                row = tactic_rows.setdefault(tactic, {"id": tactic, "name": TACTIC_LABELS.get(tactic, tactic.replace("-", " ").title()), "observed": 0, "attempted": 0, "candidate": 0, "techniques": []})
                 row[mapping["status"]] += 1; row["techniques"].append(mapping["id"])
         tactics = sorted(tactic_rows.values(), key=lambda row: row["name"])
         return {
             "schema": SCHEMA, "attack_version": self.catalog_meta.get("attack_version") or ATTACK_VERSION,
             "domain": ATTACK_DOMAIN, "platform": ACTIVE_PLATFORM, "processor_version": PRODUCT_VERSION, "catalog": self.catalog_meta,
-            "summary": {"techniques": len(mappings), "observed": sum(row.get("status") == "observed" for row in mappings), "candidate": sum(row.get("status") == "candidate" for row in mappings), "insufficient_evidence": len({row.get("id") for row in rejected}), "tactics": len(tactics)},
+            "summary": {
+                "techniques": len(mappings),
+                "observed": sum(row.get("status") == "observed" for row in mappings),
+                "attempted": sum(row.get("status") == "attempted" for row in mappings),
+                "candidate": sum(row.get("status") == "candidate" for row in mappings),
+                "insufficient_evidence": len({row.get("id") for row in rejected}),
+                "tactics": len(tactics),
+            },
             "tactics": tactics, "mappings": mappings,
             "rejected_candidates": sorted(rejected, key=lambda row: (row.get("id", ""), row.get("rule_id", ""))),
             "state_machine_evaluations": self.state_evaluations, "coverage": coverage, "coverage_warnings": self.warnings,
             "semantics": {
                 "observed": "Successful semantic evidence or a validated state machine supports the technique.",
+                "attempted": "A direct technique action was attempted but failed; completion is not claimed.",
                 "candidate": "Evidence is compatible but has a benign alternative or quality limitation.",
                 "insufficient_evidence": "A precursor was seen but required states were missing.",
                 "unsupported_by_sensor": "The catalog technique was not evaluated by the current sensor/rule profile.",

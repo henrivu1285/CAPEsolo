@@ -4,6 +4,7 @@ from contextlib import suppress
 from pathlib import Path
 
 from CAPEsolo.capelib.path_utils import path_exists, path_glob, path_is_file
+from CAPEsolo.capelib.report_redaction import redact_report_in_place
 from CAPEsolo.capelib.utils import (
     datefmt,
     dict2list,
@@ -34,6 +35,8 @@ class ReportHTML:
         """
         if not HAVE_JINJA2:
             return False, "Failed to generate HTML report: Jinja2 Python library is not installed"
+
+        redact_report_in_place(results)
 
         desktop = Path(os.path.expanduser("~/Desktop"))
         rootDir = Path(soloRoot)

@@ -10,15 +10,17 @@
     </div>
 
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number">{{ summary.observed or 0 }}</div><div>Observed</div></div></div></div>
-        <div class="col-6 col-md-3"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number text-warning">{{ summary.candidate or 0 }}</div><div>Candidates</div></div></div></div>
-        <div class="col-6 col-md-3"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number text-secondary">{{ summary.insufficient_evidence or 0 }}</div><div>Insufficient evidence</div></div></div></div>
-        <div class="col-6 col-md-3"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number">{{ summary.tactics or 0 }}</div><div>Tactics covered</div></div></div></div>
+        <div class="col-6 col-md"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number">{{ summary.observed or 0 }}</div><div>Observed</div></div></div></div>
+        <div class="col-6 col-md"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number text-info">{{ summary.attempted or 0 }}</div><div>Attempted</div></div></div></div>
+        <div class="col-6 col-md"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number text-warning">{{ summary.candidate or 0 }}</div><div>Candidates</div></div></div></div>
+        <div class="col-6 col-md"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number text-secondary">{{ summary.insufficient_evidence or 0 }}</div><div>Insufficient evidence</div></div></div></div>
+        <div class="col-6 col-md"><div class="card mitre-metric"><div class="card-body"><div class="mitre-number">{{ summary.tactics or 0 }}</div><div>Tactics covered</div></div></div></div>
     </div>
 
     <div class="alert alert-secondary mitre-semantics">
         <strong>Interpretation:</strong>
         <span class="badge bg-success">Observed</span> requires successful dynamic evidence or a validated chain.
+        <span class="badge bg-info text-dark">Attempted</span> records an explicit action that failed and does not claim completion.
         <span class="badge bg-warning text-dark">Candidate</span> has a benign alternative or quality limitation.
         <span class="badge bg-secondary">Insufficient evidence</span> records a precursor whose required evidence was missing.
         A catalog entry without an enabled detector is <strong>not evaluated</strong>, not evidence of absence.
@@ -90,7 +92,7 @@
                     <div class="mitre-tactic h-100">
                         <div class="d-flex justify-content-between gap-2">
                             <strong>{{ tactic.name }}</strong>
-                            <span><span class="badge bg-success">{{ tactic.observed }}</span> <span class="badge bg-warning text-dark">{{ tactic.candidate }}</span></span>
+                            <span><span class="badge bg-success">{{ tactic.observed }}</span> <span class="badge bg-info text-dark">{{ tactic.attempted }}</span> <span class="badge bg-warning text-dark">{{ tactic.candidate }}</span></span>
                         </div>
                         <div class="mitre-technique-list mono">{{ tactic.techniques | join(', ') }}</div>
                     </div>
@@ -111,6 +113,7 @@
                     <tr>
                         <td>
                             {% if mapping.status == 'observed' %}<span class="badge bg-success">Observed</span>
+                            {% elif mapping.status == 'attempted' %}<span class="badge bg-info text-dark">Attempted</span>
                             {% else %}<span class="badge bg-warning text-dark">Candidate</span>{% endif %}
                         </td>
                         <td>

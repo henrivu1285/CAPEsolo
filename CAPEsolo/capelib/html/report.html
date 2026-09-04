@@ -4,6 +4,13 @@
     <div class="tab-pane fade show active" id="info" role="tabpanel" aria-labelledby="info-tab">
         {% include "sections/info.html" %}
         {% include "sections/errors.html" %}
+        {% if results.report_redaction and results.report_redaction.clipboard_fields_redacted %}
+        <div class="alert alert-info">
+            <strong>Sensitive evidence protected:</strong>
+            {{ results.report_redaction.clipboard_fields_redacted }} clipboard field(s) were redacted from this shareable HTML/JSON report.
+            Hashes and captured lengths remain available for correlation; canonical raw behavior evidence remains lossless.
+        </div>
+        {% endif %}
         {% include "sections/threat_assessment.html" %}
         {% include "sections/file.html" %}
         {% include "sections/signatures.html" %}

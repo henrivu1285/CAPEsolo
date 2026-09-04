@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline regression tests for CAPEsolo + Frida P3.2.3.14."""
+"""Offline regression tests for CAPEsolo + Frida P3.2.3.15."""
 from __future__ import annotations
 
 import importlib.util
@@ -554,7 +554,7 @@ def test_shared_product_version_source():
         "shared_version_p32310", ROOT / "lib" / "common" / "frida_version.py"
     )
     assert version_module.PRODUCT_VERSION == PRODUCT_VERSION
-    assert (ROOT / "version.txt").read_text(encoding="utf-8").strip() == "0.5.31-p32314"
+    assert (ROOT / "version.txt").read_text(encoding="utf-8").strip() == "0.5.31-p32315"
     generic = json.loads(
         (ROOT / "data" / "frida_profiles" / "generic.json").read_text(encoding="utf-8")
     )
@@ -2012,6 +2012,146 @@ def test_mitre_registry_query_and_debugger_state_machines():
     assert "T1012" not in {row["id"] for row in none["mappings"]}
 
 
+def test_mitre_keylogging_state_machine_uses_structured_global_hook():
+    from CAPEsolo.capelib.mitre_attack import map_mitre_attack
+
+    hook = _attack_call("SetWindowsHookExW", {
+        "HookIdentifier": 2, "ProcedureAddress": "0x100013d0",
+        "ModuleAddress": "0x10000000", "ThreadId": 0,
+    })
+    hook["return"] = "0x000703ad"
+    report = map_mitre_attack(_attack_results([hook]), write_artifact=False)
+    mapped = next(row for row in report["mappings"] if row["id"] == "T1056.001")
+    assert (mapped["status"], mapped["confidence"]) == ("observed", "high"), mapped
+    assert mapped["state_machines"][0]["state_trace"] == ["keyboard_hook"]
+
+    message_hook = _attack_call("SetWindowsHookExW", {
+        "HookIdentifier": 4, "ProcedureAddress": "0x100015a0",
+        "ModuleAddress": "0x10000000", "ThreadId": 0,
+    })
+    message_hook["return"] = "0x000e032b"
+    no_map = map_mitre_attack(_attack_results([message_hook]), write_artifact=False)
+    assert "T1056.001" not in {row["id"] for row in no_map["mappings"]}
+
+    local_hook = _attack_call("SetWindowsHookExA", {
+        "HookIdentifier": 2, "ProcedureAddress": "0x401000",
+        "ModuleAddress": "0x400000", "ThreadId": 8576,
+    })
+    local_hook["return"] = "0x1234"
+    candidate = map_mitre_attack(_attack_results([local_hook]), write_artifact=False)
+    local = next(row for row in candidate["mappings"] if row["id"] == "T1056.001")
+    assert local["status"] == "candidate"
+
+
+def test_mitre_screen_capture_artifact_state_machine():
+    from CAPEsolo.capelib.mitre_attack import map_mitre_attack
+
+    first = r"C:\Windows\Temp\shot_001.jpg"
+    second = r"C:\Windows\Temp\shot_002.jpg"
+    calls = [
+        _attack_call("NtCreateFile", {"FileName": first, "DesiredAccess": "0x40100080", "CreateDisposition": 5}),
+        _attack_call("NtWriteFile", {"HandleName": first, "Buffer": r"\xff\xd8\xff\xe0JFIF", "Length": 4096}, "2026-08-27 18:15:49,100"),
+        _attack_call("NtCreateFile", {"FileName": second, "DesiredAccess": "0x40100080", "CreateDisposition": 5}, "2026-08-27 18:15:50,000"),
+    ]
+    # Preserve the raw magic field shape emitted by CAPEMON.
+    calls[1]["arguments"][1]["raw_value"] = "ffd8ffe000104a464946"
+    report = map_mitre_attack(_attack_results(calls), write_artifact=False)
+    mapped = next(row for row in report["mappings"] if row["id"] == "T1113")
+    assert (mapped["status"], mapped["confidence"]) == ("observed", "high"), mapped
+    state = next(row for row in mapped["state_machines"] if row["rule_id"] == "sm.collection.screen_capture_artifacts")
+    assert state["complete"] is True and state["state_trace"].count("image_artifact") == 2
+
+    one = map_mitre_attack(_attack_results(calls[:2]), write_artifact=False)
+    incomplete = next(row for row in one["mappings"] if row["id"] == "T1113")
+    assert incomplete["status"] == "candidate"
+
+
+def test_mitre_smtp_attempted_is_not_completed_c2():
+    from CAPEsolo.capelib.mitre_attack import map_mitre_attack
+    from CAPEsolo.capelib.threat_assessment import assess_threat
+
+    failed = [
+        _attack_call("connect", {"socket": 1228, "ip": "192.168.56.2", "port": 587}, status=False),
+        _attack_call("send", {"socket": 1228, "buffer": "QUIT\r\n"}, "2026-08-27 18:15:50,000", status=False),
+    ]
+    attempted_report = map_mitre_attack(_attack_results(failed), write_artifact=False)
+    attempted = next(row for row in attempted_report["mappings"] if row["id"] == "T1071.003")
+    assert attempted["status"] == "attempted", attempted
+    assert attempted_report["summary"]["attempted"] == 1
+    state = attempted["state_machines"][0]
+    assert state["outcome"] == "attempted" and state["scoreable"] is False
+    attempted_results = _attack_results(failed)
+    attempted_results["mitre_attack"] = attempted_report
+    score = assess_threat(attempted_results)
+    assert next(row for row in score["components"] if row["category"] == "validated_state_machines")["points"] == 0
+
+    success = [
+        _attack_call("connect", {"socket": 42, "ip": "192.0.2.25", "port": 587}),
+        _attack_call("send", {"socket": 42, "buffer": "EHLO host.example\r\n"}, "2026-08-27 18:15:50,000"),
+    ]
+    completed_report = map_mitre_attack(_attack_results(success), write_artifact=False)
+    completed = next(row for row in completed_report["mappings"] if row["id"] == "T1071.003")
+    assert completed["status"] == "observed"
+
+
+def test_mitre_system_location_requires_independent_signals():
+    from CAPEsolo.capelib.mitre_attack import map_mitre_attack
+
+    locale = _attack_call("GetUserDefaultLCID", {"SystemDefaultLangID": "0x00000409", "LanguageName": "English (United States)"})
+    one = map_mitre_attack(_attack_results([locale]), write_artifact=False)
+    mapped = next(row for row in one["mappings"] if row["id"] == "T1614")
+    assert (mapped["status"], mapped["confidence"]) == ("candidate", "low")
+
+    timezone = _attack_call("GetDynamicTimeZoneInformation", {"TimeZoneKeyName": "Pacific Standard Time"}, "2026-08-27 18:15:50,000")
+    two = map_mitre_attack(_attack_results([locale, timezone]), write_artifact=False)
+    mapped = next(row for row in two["mappings"] if row["id"] == "T1614")
+    assert (mapped["status"], mapped["confidence"]) == ("observed", "medium")
+
+
+def test_shareable_report_redacts_clipboard_but_preserves_raw_input():
+    from copy import deepcopy
+    from CAPEsolo.capelib.report_redaction import redact_report_in_place
+
+    secret = "frida_pcap_agent_token=test-secret-value"
+    call = _attack_call("GetClipboardData", {"Format": 13, "Data": secret})
+    call["arguments"][1]["raw_value"] = secret.encode().hex()
+    results = _attack_results([call])
+    canonical = deepcopy(results)
+    redact_report_in_place(results)
+    argument = results["behavior"]["processes"][0]["calls"][0]["arguments"][1]
+    assert argument["value"] == "<redacted clipboard data>" and argument["raw_value"] == "<redacted>"
+    assert results["report_redaction"]["clipboard_fields_redacted"] == 1
+    assert results["report_redaction"]["captured_bytes_redacted"] == len(secret)
+    assert canonical["behavior"]["processes"][0]["calls"][0]["arguments"][1]["value"] == secret
+    assert "test-secret-value" not in json.dumps(results)
+
+
+def test_attempted_status_and_redaction_render_in_html():
+    if importlib.util.find_spec("markupsafe") is None or importlib.util.find_spec("jinja2") is None:
+        return
+    from CAPEsolo.capelib.mitre_attack import map_mitre_attack
+    from CAPEsolo.capelib.threat_assessment import assess_threat
+    from CAPEsolo.classes.html_report import ReportHTML
+
+    secret = "frida_pcap_agent_token=must-not-appear"
+    calls = [
+        _attack_call("GetClipboardData", {"Format": 13, "Data": secret}),
+        _attack_call("connect", {"socket": 7, "ip": "192.168.56.2", "port": 587}, "2026-08-27 18:15:50,000", status=False),
+        _attack_call("send", {"socket": 7, "buffer": "QUIT\r\n"}, "2026-08-27 18:15:51,000", status=False),
+    ]
+    calls[0]["arguments"][1]["raw_value"] = secret.encode().hex()
+    results = _attack_results(calls)
+    results["mitre_attack"] = map_mitre_attack(results, write_artifact=False)
+    results["threat_assessment"] = assess_threat(results)
+    with tempfile.TemporaryDirectory() as td:
+        complete, error = ReportHTML().run(Path(td), ROOT, results)
+        assert complete is True and error is None, error
+        html = (Path(td) / "report.html").read_text(encoding="utf-8")
+        assert "Attempted" in html and "Mail Protocols" in html
+        assert "Sensitive evidence protected" in html
+        assert "must-not-appear" not in html
+
+
 def test_threat_assessment_thresholds_caps_and_quality():
     from CAPEsolo.capelib.mitre_attack import map_mitre_attack
     from CAPEsolo.capelib.threat_assessment import assess_threat
@@ -2170,7 +2310,8 @@ def test_mitre_catalog_coverage_is_not_detection_coverage():
     }
     assert coverage["domains"]["ics-attack"]["unsupported_by_sensor"] == 97
     enterprise = coverage["domains"]["enterprise-attack"]
-    assert enterprise["supported"] == 10 and enterprise["partially_supported"] == 41
+    assert enterprise["supported"] == 13 and enterprise["partially_supported"] == 39
+    assert {"T1056.001", "T1113", "T1614"} <= set(enterprise["supported_ids"])
     assert "T1036" in enterprise["partial_ids"]
     assert "must not be interpreted as absent" in coverage["meaning"]
 
@@ -2292,6 +2433,12 @@ def main() -> int:
         test_mitre_lsass_state_machine_positive_and_negative,
         test_mitre_environment_check_requires_compound_evidence,
         test_mitre_registry_query_and_debugger_state_machines,
+        test_mitre_keylogging_state_machine_uses_structured_global_hook,
+        test_mitre_screen_capture_artifact_state_machine,
+        test_mitre_smtp_attempted_is_not_completed_c2,
+        test_mitre_system_location_requires_independent_signals,
+        test_shareable_report_redacts_clipboard_but_preserves_raw_input,
+        test_attempted_status_and_redaction_render_in_html,
         test_threat_assessment_thresholds_caps_and_quality,
         test_threat_assessment_html_and_pipeline_source,
         test_mitre_insufficient_evidence_is_not_sensor_unsupported,

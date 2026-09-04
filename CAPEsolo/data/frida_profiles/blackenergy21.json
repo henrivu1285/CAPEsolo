@@ -1,6 +1,6 @@
 {
   "name": "blackenergy21",
-  "description": "BlackEnergy2.1 compatibility profile for P3.2.3.14 with evidence-first MITRE ATT&CK reporting, segment-aware clock correlation, task-scoped PCAP and Sysmon network attribution; preserves its validated immediate child-attach path.",
+  "description": "BlackEnergy2.1 compatibility profile for P3.2.3.15 with evidence-first MITRE ATT&CK reporting, attempted-action semantics, shareable-report redaction, segment-aware clock correlation, task-scoped PCAP and Sysmon network attribution; preserves its validated immediate child-attach path.",
   "target": {
     "name": "rootkit.exe"
   },

@@ -2,16 +2,16 @@
 
 Runtime evidence is the source of truth for the version of the analysis that
 produced a report.  ``PRODUCT_VERSION`` identifies the code doing the work.
-Keeping both values prevents a P3.2.3.14 post-processor from relabelling an old
-P3.2.3.7 run while ensuring every output from a new run agrees on P3.2.3.14.
+Keeping both values prevents a P3.2.3.15 post-processor from relabelling an old
+P3.2.3.7 run while ensuring every output from a new run agrees on P3.2.3.15.
 """
 from __future__ import annotations
 
 import re
 from typing import Any
 
-PRODUCT_VERSION = "P3.2.3.14"
-PACKAGE_VERSION = "0.5.31-p32314"
+PRODUCT_VERSION = "P3.2.3.15"
+PACKAGE_VERSION = "0.5.31-p32315"
 
 _PRODUCT_RE = re.compile(r"^P\d+(?:\.\d+)+$")
 
