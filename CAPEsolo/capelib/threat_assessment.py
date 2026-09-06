@@ -1,4 +1,4 @@
-"""Deterministic, evidence-weighted threat assessment for P3.2.3.15.
+"""Deterministic, evidence-weighted threat assessment for P3.2.3.16.
 
 The score is a triage aid, not a probability and not an antivirus verdict.  It
 uses unique ATT&CK technique families, completed state machines, signatures and
@@ -13,7 +13,7 @@ from typing import Any
 from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION
 
 SCHEMA = "capesolo-threat-assessment/1.0"
-SCORE_VERSION = "p32315-evidence-v2"
+SCORE_VERSION = "p32316-evidence-v3"
 THRESHOLDS = {
     "benign": {"minimum": 0, "maximum": 19},
     "suspicious": {"minimum": 20, "maximum": 59},
@@ -63,6 +63,12 @@ def _attack_component(attack: dict) -> dict:
     strongest: dict[str, dict] = {}
     for mapping in attack.get("mappings") or []:
         if not isinstance(mapping, dict) or mapping.get("status") not in STATUS_FACTORS:
+            continue
+        # Sigma-only mappings deliberately remain review candidates and must
+        # not inflate the maliciousness score.  When a native detector also
+        # supports the same mapping, normal scoring still applies.
+        sources = {str(value) for value in mapping.get("sources") or []}
+        if mapping.get("status") == "candidate" and sources and sources <= {"sigma_rule"}:
             continue
         family = str(mapping.get("id") or "").split(".", 1)[0]
         raw = _technique_base(mapping)

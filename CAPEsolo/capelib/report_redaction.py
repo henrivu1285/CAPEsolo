@@ -1,4 +1,4 @@
-"""Presentation-layer redaction for P3.2.3.15 reports.
+"""Presentation-layer redaction for P3.2.3.16 reports.
 
 Canonical raw evidence files remain lossless.  This module only mutates the
 integrated JSON/HTML report after detection and scoring have completed, so

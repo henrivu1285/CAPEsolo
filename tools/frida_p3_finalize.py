@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Build the P3.2.3.15 summary for the current CAPEsolo attempt.
+"""Build the P3.2.3.16 summary for the current CAPEsolo attempt.
 
-P3.2.3.15 retains the active-time child observation window, gates cold
+P3.2.3.16 retains the active-time child observation window, gates cold
 cross-bitness child attach on usable injector prewarm, and preserves the exact
 terminal attach outcome. Raw evidence and the lossless clean view are unchanged.
 """
@@ -539,7 +539,7 @@ def _record_argument(record: dict, name: str):
 def detect_behavior_telemetry_gaps(records: list[dict]) -> dict:
     """Find high-value API-chain discontinuities without inventing raw calls.
 
-    P3.2.3.15 checks registry handle continuity. A RegSetValue call
+    P3.2.3.16 checks registry handle continuity. A RegSetValue call
     using a decoded handle that has no observed open/create origin is reported
     as a suspected telemetry gap, especially when the process resolved a
     registry-opening API and immediately closes the same handle. The missing
@@ -1300,20 +1300,20 @@ def build_report(analysis_dir: Path, output_dir: Path | None = None) -> dict:
             "instrumentation_coverage_reasons": coverage_reasons,
         },
         "notes": [
-            "P3.2.3.15 retains P3.2/P3.2.1 run scoping and provenance invariants.",
+            "P3.2.3.16 retains P3.2/P3.2.1 run scoping and provenance invariants.",
             "Use a clean analysis output directory between attempts so derived evidence cannot mix across runs.",
             "Retained artifacts are not automatically labeled malicious.",
             "No artifact is downgraded solely because it was dumped near Frida bootstrap time.",
             "Upstream CAPEsolo per-process call ownership is validated; report.behavior_fixed.json is created only as a fallback for an older/accreting report.",
             "Behavior provenance consumes the fixed report plus confirmed private instrumentation ranges and bounded same-thread Frida context.",
             "CAPEMON api-rate-cap events are reported as telemetry coverage warnings; they do not alter raw evidence or automatically change the overall run status.",
-            "P3.2.3.15 keeps behavior.compact.jsonl as a presentation-only semantic view; behavior.filtered.jsonl remains lossless and unchanged.",
-            "P3.2.3.15 reports missing file materialization without synthesizing CopyFile/CreateFile evidence.",
-            "P3.2.3.15 retains generic behavior-chain summaries for persistence, stage hand-off, and conservative injection precursors.",
-            "P3.2.3.15 separates Frida agent attach, fast child hooks, CAPEMON-observed short-lived children, and full hooks-ready outcomes per PID.",
+            "P3.2.3.16 keeps behavior.compact.jsonl as a presentation-only semantic view; behavior.filtered.jsonl remains lossless and unchanged.",
+            "P3.2.3.16 reports missing file materialization without synthesizing CopyFile/CreateFile evidence.",
+            "P3.2.3.16 retains generic behavior-chain summaries for persistence, stage hand-off, and conservative injection precursors.",
+            "P3.2.3.16 separates Frida agent attach, fast child hooks, CAPEMON-observed short-lived children, and full hooks-ready outcomes per PID.",
             "Adaptive child policy uses active observation time; scheduler/VM stalls are reported separately and do not consume the CAPEMON-exclusive window.",
             "A requested target architecture with failed injector prewarm remains CAPEMON/Sysmon-only instead of receiving a slow cold attach.",
-            "P3.2.3.15 preserves target_died_during_optional_attach and reports possible instrumentation interference without claiming causation.",
+            "P3.2.3.16 preserves target_died_during_optional_attach and reports possible instrumentation interference without claiming causation.",
             "WerFault attribution uses the parent PID's actual attach evidence and never treats temporal proximity as proof of causation.",
             "Registry handle continuity warnings never synthesize missing raw API calls.",
             "Per-API rate-cap coverage marks observed counts as lower bounds instead of treating missing post-cap calls as absence of activity.",

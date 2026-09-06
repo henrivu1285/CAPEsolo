@@ -1,6 +1,6 @@
 {
   "name": "blackenergy21",
-  "description": "BlackEnergy2.1 compatibility profile for P3.2.3.15 with evidence-first MITRE ATT&CK reporting, attempted-action semantics, shareable-report redaction, segment-aware clock correlation, task-scoped PCAP and Sysmon network attribution; preserves its validated immediate child-attach path.",
+  "description": "BlackEnergy2.1 compatibility profile for P3.2.3.16 with evidence-first MITRE ATT&CK reporting, attempted-action semantics, shareable-report redaction, segment-aware clock correlation, task-scoped PCAP and Sysmon network attribution; preserves its validated immediate child-attach path.",
   "target": {
     "name": "rootkit.exe"
   },
@@ -77,7 +77,7 @@
   "child_root_ready_timeout": 15.0,
   "sysmon_tampering_init_window": 3.0,
   "capemon_fallback_delay": 8.0,
-  "schema_version": "3.2.3.14",
+  "schema_version": "3.2.3.16",
   "p3_max_evidence": 5000,
   "match": {
     "min_score": 80,

@@ -1,4 +1,4 @@
-"""Coverage-aware MITRE ATT&CK v19.2 mapper for P3.2.3.15.
+"""Coverage-aware MITRE ATT&CK v19.2 mapper for P3.2.3.16.
 
 ATT&CK metadata supplies catalog context and sensor requirements. Executable
 detection remains local, deterministic and testable: sensor records are first
@@ -14,9 +14,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 from CAPEsolo.capelib.attack_state import EvidenceEvent, SequenceRule, evaluate_distinct, evaluate_sequence, parse_timestamp
+from CAPEsolo.capelib.sigma_runtime import evaluate_sigma
 from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION
 
-SCHEMA = "capesolo-mitre-attack/1.3"
+SCHEMA = "capesolo-mitre-attack/1.4"
 ATTACK_VERSION = "19.2"
 ATTACK_DOMAIN = "enterprise-attack"
 ACTIVE_PLATFORM = "Windows"
@@ -52,15 +53,15 @@ PARTIAL = {
     "T1497.003", "T1518.001", "T1543.003", "T1622", "T1685", "T1685.005",
 }
 SENSORS = {
-    "DC0021": {"component": "OS API Execution", "sensors": ["CAPEMON API telemetry", "Frida selected hooks"]},
-    "DC0032": {"component": "Process Creation", "sensors": ["CAPEMON process APIs", "Sysmon EID 1"]},
-    "DC0039": {"component": "File Creation", "sensors": ["CAPEMON file APIs", "artifact manifest"]},
-    "DC0059": {"component": "File Metadata", "sensors": ["PE version information", "Authenticode signer metadata"]},
-    "DC0063": {"component": "Windows Registry Key Modification", "sensors": ["CAPEMON registry APIs", "Sysmon EID 12-14"]},
-    "DC0064": {"component": "Command Execution", "sensors": ["CAPEMON process APIs", "PowerShell Script Block Logging"]},
-    "DC0009": {"component": "Process Access", "sensors": ["CAPEMON process-memory APIs", "Sysmon EID 10"]},
-    "DC0082": {"component": "Network Traffic Flow", "sensors": ["PCAP agent", "Sysmon EID 3"]},
-    "DC0077": {"component": "Network Traffic Content", "sensors": ["PCAP decoders", "TLS key material"]},
+    "DC0021": {"component": "OS API Execution", "default_sensors": ["CAPEMON API telemetry", "Frida selected hooks"]},
+    "DC0032": {"component": "Process Creation", "default_sensors": ["CAPEMON process APIs", "Sysmon EID 1"]},
+    "DC0039": {"component": "File Creation", "default_sensors": ["CAPEMON file APIs", "artifact manifest"]},
+    "DC0059": {"component": "File Metadata", "default_sensors": ["PE version information", "Authenticode signer metadata"]},
+    "DC0063": {"component": "Windows Registry Key Modification", "default_sensors": ["CAPEMON registry APIs"], "optional_sensors": ["Sysmon EID 12-14 (not enabled by the default P3 profile)"]},
+    "DC0064": {"component": "Command Execution", "default_sensors": ["CAPEMON process APIs"], "optional_sensors": ["PowerShell Script Block Logging EID 4104 (no default collector)"]},
+    "DC0009": {"component": "Process Access", "default_sensors": ["CAPEMON process-memory APIs"], "optional_sensors": ["Sysmon EID 10 (not enabled by the default P3 profile)"]},
+    "DC0082": {"component": "Network Traffic Flow", "default_sensors": ["PCAP agent", "Sysmon EID 3"]},
+    "DC0077": {"component": "Network Traffic Content", "default_sensors": ["PCAP decoders", "TLS key material"]},
 }
 NETWORK_PREFIXES = ("http_", "https_", "network_", "smtp_", "irc_", "dns_", "injection_network")
 
@@ -240,7 +241,7 @@ def prepare_clean_behavior(results: dict, analysis_path: Optional[Path]) -> dict
     """Run provenance before mapping because the external finalizer runs later."""
     if not analysis_path or not (results.get("behavior") or {}).get("processes"):
         return {"available": False, "reason": "analysis_path_or_behavior_missing"}
-    temporary = analysis_path / ".p32315_mitre_behavior_input.json"
+    temporary = analysis_path / ".p32316_mitre_behavior_input.json"
     try:
         from tools.frida_artifact_filter import classify_analysis
         from tools.frida_behavior_chains import build_behavior_chains
@@ -276,6 +277,7 @@ class AttackMapper:
         self.lineage = self._json_artifact("frida_p3_runtime.json", "frida_p3_runtime*.json").get("lineage") or {}
         self.p3_report = self._json_artifact("frida_p3_report.json", "frida_p3_report*.json")
         self.chains = self._chains(); self.clean_rows, self.clean_source = self._clean_rows()
+        self.sigma_report = {}
         if self.clean_source == "raw_behavior_fallback": self.warnings.append({"code": "clean_behavior_unavailable", "severity": "warning", "message": "Canonical clean behavior was unavailable; conservative raw-call fallback was used."})
 
     def _json_artifact(self, exact: str, pattern: str) -> dict:
@@ -989,6 +991,52 @@ class AttackMapper:
                                       {"host": host, "src": row.get("src"), "sport": row.get("sport"), "dst": row.get("dst"), "dport": row.get("dport"), "traffic_class": row.get("traffic_class"), "attribution_confidence": attribution.get("confidence")})
             self.add(technique, status, confidence, f"network.{protocol}.tracked", "Protocol activity was attributed to analyzed lineage and passed capture, clock and traffic-class gates.", evidence)
 
+    def _map_sigma(self) -> None:
+        """Evaluate official SigmaHQ rules without promoting Sigma-only hits.
+
+        Sigma tags describe the rule author's ATT&CK classification.  They are
+        useful independent candidates, but a native P3 semantic detector or
+        validated state machine is still required for ``observed``.
+        """
+        self.sigma_report = evaluate_sigma(self.results, self.analysis_path, self.clean_rows)
+        if not self.sigma_report.get("available"):
+            self.warnings.append({
+                "code": "sigma_pack_unavailable", "severity": "warning",
+                "message": "The pinned SigmaHQ rule pack was unavailable; native P3 ATT&CK mapping still ran.",
+            })
+            return
+        if (self.sigma_report.get("coverage") or {}).get("match_limit_reached"):
+            self.warnings.append({
+                "code": "sigma_match_limit_reached", "severity": "warning",
+                "message": "Sigma match output reached its safety limit; additional rule hits may be omitted.",
+            })
+        for match in self.sigma_report.get("matches") or []:
+            if not isinstance(match, dict):
+                continue
+            evidence_meta = match.get("evidence") or {}
+            evidence = self._evidence(
+                "sigma_rule",
+                f"SigmaHQ rule matched: {match.get('title') or match.get('rule_id')}",
+                {"process_id": evidence_meta.get("pid")},
+                {"timestamp": evidence_meta.get("timestamp"), "api": evidence_meta.get("api")},
+                {
+                    "sigma_rule_id": match.get("rule_id"), "sigma_status": match.get("status"),
+                    "sigma_level": match.get("level"), "logsource": (match.get("logsource") or {}).get("category"),
+                    "authors": match.get("authors") or [],
+                    "source_path": match.get("source_path"), "matched_fields": match.get("matched_fields"),
+                },
+            )
+            for raw_id in match.get("attack_ids") or []:
+                technique, original = normalize_technique_id(raw_id)
+                if not technique:
+                    continue
+                self.add(
+                    technique, "candidate", str(match.get("confidence") or "low"),
+                    f"sigma.{match.get('rule_id') or 'unidentified'}",
+                    "An official SigmaHQ rule matched normalized P3 telemetry; Sigma-only evidence remains a candidate until corroborated by a native semantic detector or state machine.",
+                    evidence, original,
+                )
+
     def _detector_coverage(self) -> dict:
         all_domains = _safe_json(_catalog_path()).get("domains") or {}; rows = {}
         for domain, metadata in all_domains.items():
@@ -996,15 +1044,25 @@ class AttackMapper:
             if domain != ATTACK_DOMAIN:
                 rows[domain] = {"catalog_techniques": total, "supported": 0, "partially_supported": 0, "unsupported_by_sensor": total, "not_applicable_to_platform": 0, "sensor_domain_enabled": False}; continue
             applicable = {tid for tid, item in techniques.items() if ACTIVE_PLATFORM in (item.get("platforms") or [])}
-            supported = applicable & SUPPORTED; partial = applicable & PARTIAL
+            supported = applicable & SUPPORTED
+            native_partial = applicable & PARTIAL
+            sigma_partial = {
+                normalize_technique_id(row.get("technique_id"))[0]
+                for row in self.sigma_report.get("technique_coverage") or []
+                if isinstance(row, dict) and int(row.get("eligible_rules") or 0) > 0
+            }
+            sigma_partial.discard(None)
+            partial = (native_partial | sigma_partial) - supported
             rows[domain] = {
                 "catalog_techniques": total, "supported": len(supported), "partially_supported": len(partial),
                 "unsupported_by_sensor": max(0, len(applicable) - len(supported) - len(partial)),
                 "not_applicable_to_platform": max(0, total - len(applicable)), "sensor_domain_enabled": True,
                 "supported_ids": sorted(supported), "partial_ids": sorted(partial),
+                "native_partial_ids": sorted(native_partial - supported),
+                "sigma_partial_ids": sorted(sigma_partial - supported),
             }
         return {"active_domain": ATTACK_DOMAIN, "active_platform": ACTIVE_PLATFORM, "domains": rows, "sensor_matrix": SENSORS,
-                "meaning": "Catalog coverage is not detector coverage. Unsupported techniques were not evaluated and must not be interpreted as absent."}
+                "meaning": "Catalog coverage is not detector coverage. Sigma coverage is partial and candidate-only; unsupported techniques were not evaluated and must not be interpreted as absent."}
 
     def _coverage(self) -> dict:
         processes = (self.results.get("behavior") or {}).get("processes") or []
@@ -1016,11 +1074,12 @@ class AttackMapper:
             "behavior": {"available": bool(processes), "processes": len(processes), "raw_calls": raw_calls, "clean_calls": len(self.clean_rows) if self.clean_rows else raw_calls, "source": self.clean_source},
             "signatures": {"matched": len(signatures), "with_attack_ids": sum(bool(row.get("ttps")) for row in signatures if isinstance(row, dict))},
             "behavior_chains": {"available": bool(self.chains), "chains": len(self.chains.get("chains") or []) if isinstance(self.chains, dict) else 0},
-            "network": self._network_quality(), "detectors": self._detector_coverage(), "limitations": [row["code"] for row in self.warnings],
+            "network": self._network_quality(), "sigma": self.sigma_report.get("coverage") or {},
+            "detectors": self._detector_coverage(), "limitations": [row["code"] for row in self.warnings],
         }
 
     def build(self) -> dict:
-        self._map_target_masquerading(); self._map_calls(); self._map_chains(); self._map_signatures(); self._map_network(); coverage = self._coverage()
+        self._map_target_masquerading(); self._map_calls(); self._map_chains(); self._map_signatures(); self._map_network(); self._map_sigma(); coverage = self._coverage()
         resolved = {technique for technique, row in self.mappings.items() if row.get("status") in {"observed", "attempted"}}
         rejected = [row for row in self.rejected if row.get("id") not in resolved]
         mappings = sorted(self.mappings.values(), key=lambda row: (-STATUS_RANK.get(row.get("status"), 0), -CONFIDENCE_RANK.get(row.get("confidence"), 0), row.get("id", "")))
@@ -1040,10 +1099,13 @@ class AttackMapper:
                 "candidate": sum(row.get("status") == "candidate" for row in mappings),
                 "insufficient_evidence": len({row.get("id") for row in rejected}),
                 "tactics": len(tactics),
+                "sigma_rule_matches": len(self.sigma_report.get("matches") or []),
+                "sigma_attack_candidates": len(self.sigma_report.get("attack_candidates") or []),
             },
             "tactics": tactics, "mappings": mappings,
             "rejected_candidates": sorted(rejected, key=lambda row: (row.get("id", ""), row.get("rule_id", ""))),
             "state_machine_evaluations": self.state_evaluations, "coverage": coverage, "coverage_warnings": self.warnings,
+            "sigma": self.sigma_report,
             "semantics": {
                 "observed": "Successful semantic evidence or a validated state machine supports the technique.",
                 "attempted": "A direct technique action was attempted but failed; completion is not claimed.",

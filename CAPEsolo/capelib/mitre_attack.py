@@ -1,4 +1,4 @@
-"""Compatibility entry point for the P3.2.3.15 ATT&CK engine."""
+"""Compatibility entry point for the P3.2.3.16 ATT&CK engine."""
 from CAPEsolo.capelib.mitre_attack_v12 import (
     ACTIVE_PLATFORM,
     ATTACK_DOMAIN,

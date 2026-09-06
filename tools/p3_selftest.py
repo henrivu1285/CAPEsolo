@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Offline regression tests for CAPEsolo + Frida P3.2.3.15."""
+"""Offline regression tests for CAPEsolo + Frida P3.2.3.16."""
 from __future__ import annotations
 
 import importlib.util
+import gzip
 import json
 import sys
 import tempfile
@@ -554,11 +555,11 @@ def test_shared_product_version_source():
         "shared_version_p32310", ROOT / "lib" / "common" / "frida_version.py"
     )
     assert version_module.PRODUCT_VERSION == PRODUCT_VERSION
-    assert (ROOT / "version.txt").read_text(encoding="utf-8").strip() == "0.5.31-p32315"
+    assert (ROOT / "version.txt").read_text(encoding="utf-8").strip() == "0.5.31-p32316"
     generic = json.loads(
         (ROOT / "data" / "frida_profiles" / "generic.json").read_text(encoding="utf-8")
     )
-    assert generic["schema_version"] == "3.2.3.14"
+    assert generic["schema_version"] == "3.2.3.16"
     for filename in ("frida_artifact_filter.py", "frida_behavior_compact.py"):
         source = (HERE / filename).read_text(encoding="utf-8")
         assert '"version": "P3.2.3.5"' not in source
@@ -2295,7 +2296,8 @@ def test_mitre_report_time_preparation_builds_clean_view_and_chains():
         assert (analysis / "frida_behavior_chains.json").is_file()
         assert report["coverage"]["behavior_chains"]["chains"] == 1
         persistence = next(row for row in report["mappings"] if row["id"] == "T1547.001")
-        assert set(persistence["sources"]) == {"behavior_api", "behavior_chain"}
+        assert {"behavior_api", "behavior_chain"} <= set(persistence["sources"])
+        assert "sigma_rule" in persistence["sources"]
 
 
 def test_mitre_catalog_coverage_is_not_detection_coverage():
@@ -2310,7 +2312,10 @@ def test_mitre_catalog_coverage_is_not_detection_coverage():
     }
     assert coverage["domains"]["ics-attack"]["unsupported_by_sensor"] == 97
     enterprise = coverage["domains"]["enterprise-attack"]
-    assert enterprise["supported"] == 13 and enterprise["partially_supported"] == 39
+    assert enterprise["supported"] == 13
+    assert len(enterprise["native_partial_ids"]) == 39
+    assert enterprise["partially_supported"] > len(enterprise["native_partial_ids"])
+    assert enterprise["sigma_partial_ids"]
     assert {"T1056.001", "T1113", "T1614"} <= set(enterprise["supported_ids"])
     assert "T1036" in enterprise["partial_ids"]
     assert "must not be interpreted as absent" in coverage["meaning"]
@@ -2339,6 +2344,10 @@ def test_mitre_html_catalog_state_and_unique_dom_ids():
         assert complete is True and error is None
         html = (analysis / "report.html").read_text(encoding="utf-8")
         assert "Catalog and executable detector coverage" in html and "Official ATT&amp;CK catalog graph" in html
+        assert "SigmaHQ rule evaluation" in html and "Sigma-only match is always" in html
+        assert "Pinned source rule" in html and "False-positive context" in html
+        assert "Authors:" in html
+        assert "Why rules were not evaluated" in html and "Missing normalized fields" in html
         assert "All active analytics" in html and "Insufficient evidence" in html
         assert "DET0365" in html and "AN1032" in html and "DC0063" in html
         ids = re.findall(r'\bid="([^"]+)"', html)
@@ -2364,6 +2373,124 @@ def test_network_quality_html_and_agent_schema_source():
     assert "InterpretNetworkAbsence" in json_report
     assert 'SCHEMA = "capesolo-pcap-agent/1.3"' in agent
     assert 'payload.setdefault("server_monotonic_ns", time.monotonic_ns())' in agent
+
+
+def _write_sigma_test_pack(path: Path) -> None:
+    pack = {
+        "schema": "capesolo-sigma-pack/1.0",
+        "source": {"repository": "test", "commit": "test", "license": "test"},
+        "summary": {"compiled_rules": 3},
+        "rules": [
+            {
+                "id": "positive-run-key", "title": "Run key", "status": "test", "level": "high",
+                "attack_ids": ["T1547.001"], "falsepositives": [], "source_path": "test/run.yml",
+                "source_sha256": "0" * 64, "logsource": {"product": "windows", "category": "registry_set"},
+                "fields": ["TargetObject"],
+                "condition": {"op": "field", "field": "TargetObject", "value": {
+                    "kind": "regex", "pattern": r"^.*\\CurrentVersion\\Run\\.*$", "ignore_case": True,
+                }},
+            },
+            {
+                "id": "negative-only", "title": "Negative only must not match", "status": "test", "level": "high",
+                "attack_ids": ["T1059.003"], "falsepositives": [], "source_path": "test/negative.yml",
+                "source_sha256": "1" * 64, "logsource": {"product": "windows", "category": "process_creation"},
+                "fields": ["Image"],
+                "condition": {"op": "not", "arg": {"op": "field", "field": "Image", "value": {
+                    "kind": "regex", "pattern": r"^.*\\benign\\.exe$", "ignore_case": True,
+                }}},
+            },
+            {
+                "id": "network-only", "title": "Network sensor gate", "status": "test", "level": "high",
+                "attack_ids": ["T1071.001"], "falsepositives": [], "source_path": "test/network.yml",
+                "source_sha256": "2" * 64, "logsource": {"product": "windows", "category": "network_connection"},
+                "fields": ["DestinationPort"],
+                "condition": {"op": "field", "field": "DestinationPort", "value": {"kind": "number", "value": 80}},
+            },
+        ],
+    }
+    with path.open("wb") as raw:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as handle:
+            handle.write(json.dumps(pack, separators=(",", ":")).encode("utf-8"))
+
+
+def test_sigma_pack_integrity_and_runtime_independence():
+    pack_path = ROOT / "data" / "sigma" / "sigmahq_windows_p3.json.gz"
+    with gzip.open(pack_path, "rt", encoding="utf-8") as handle:
+        pack = json.load(handle)
+    assert pack["schema"] == "capesolo-sigma-pack/1.0"
+    assert pack["source"]["repository"] == "https://github.com/SigmaHQ/sigma"
+    assert pack["source"]["commit"] == "272daf82bf77fb0bb97f1f0c4d82bc61154772e1"
+    assert pack["source"]["license"] == "DRL-1.1"
+    assert pack["source"]["builder"] == "pySigma" and pack["source"]["builder_version"] == "1.5.0"
+    assert pack["summary"]["source_files"] == 2410
+    assert pack["summary"]["compiled_rules"] == 1660
+    assert len(pack["rules"]) == len({row["id"] for row in pack["rules"]}) == 1660
+    assert all(len(row["source_sha256"]) == 64 for row in pack["rules"])
+    assert all(row.get("authors") for row in pack["rules"])
+    assert (ROOT / "data" / "sigma" / "SIGMAHQ_LICENSE").is_file()
+    runtime_source = (ROOT / "capelib" / "sigma_runtime.py").read_text(encoding="utf-8")
+    assert "from sigma" not in runtime_source and "import yaml" not in runtime_source
+
+
+def test_sigma_ir_positive_near_miss_negative_only_and_sensor_gate():
+    from CAPEsolo.capelib.sigma_runtime import evaluate_sigma
+    with tempfile.TemporaryDirectory() as td:
+        pack_path = Path(td) / "test-pack.json.gz"
+        _write_sigma_test_pack(pack_path)
+        positive = _attack_results([_attack_call("RegSetValueExW", {
+            "FullName": r"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run\Updater",
+            "Buffer": r"C:\Users\u\AppData\Local\updater.exe",
+        })])
+        matched = evaluate_sigma(positive, pack_path=pack_path)
+        assert [row["rule_id"] for row in matched["matches"]] == ["positive-run-key"], matched["matches"]
+        assert matched["attack_candidates"][0]["technique_id"] == "T1547.001"
+        assert matched["coverage"]["unsupported_by_sensor"] == 1
+
+        near_miss = _attack_results([_attack_call("RegSetValueExW", {
+            "FullName": r"HKEY_CURRENT_USER\Software\Vendor\Preferences\Updater",
+            "Buffer": "1",
+        })])
+        not_matched = evaluate_sigma(near_miss, pack_path=pack_path)
+        assert not not_matched["matches"], not_matched["matches"]
+
+
+def test_sigma_official_rule_native_corroboration():
+    from CAPEsolo.capelib.mitre_attack import map_mitre_attack
+    results = _attack_results([_attack_call("RegSetValueExW", {
+        "FullName": r"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run\Updater",
+        "Buffer": r"C:\Users\u\AppData\Local\updater.exe",
+    })])
+    attack = map_mitre_attack(results, write_artifact=False)
+    mapping = next(row for row in attack["mappings"] if row["id"] == "T1547.001")
+    assert mapping["status"] == "observed"
+    assert {"behavior_api", "sigma_rule"} <= set(mapping["sources"])
+    assert attack["summary"]["sigma_rule_matches"] >= 1
+    assert attack["sigma"]["matches"][0]["authors"]
+
+
+def test_sigma_only_candidate_does_not_change_threat_score():
+    from CAPEsolo.capelib.threat_assessment import assess_threat
+    base = _attack_results()
+    base["mitre_attack"] = {
+        "mappings": [{
+            "id": "T1059.001", "name": "PowerShell", "tactics": ["execution"],
+            "status": "candidate", "confidence": "medium", "sources": ["sigma_rule"],
+            "rule_ids": ["sigma.synthetic"],
+        }],
+        "state_machine_evaluations": [],
+        "coverage": {"behavior": {"available": True, "clean_calls": 1, "source": "test"}, "signatures": {}},
+        "coverage_warnings": [],
+    }
+    scored = assess_threat(base)
+    attack_component = next(row for row in scored["components"] if row["category"] == "mitre_attack")
+    assert scored["score"] == 0 and attack_component["points"] == 0 and not attack_component["signals"]
+
+
+def test_sigma_replay_tool_policy_source():
+    source = (HERE / "p32316_replay_sigma_reports.py").read_text(encoding="utf-8")
+    assert "no_sigma_only_promotion" in source
+    assert "sigma_only_score_neutral" in source
+    assert "AttackMapper(results, report_path.parent).build()" in source
 
 
 def main() -> int:
@@ -2450,6 +2577,11 @@ def main() -> int:
         test_mitre_html_catalog_state_and_unique_dom_ids,
         test_mitre_report_pipeline_source,
         test_network_quality_html_and_agent_schema_source,
+        test_sigma_pack_integrity_and_runtime_independence,
+        test_sigma_ir_positive_near_miss_negative_only_and_sensor_gate,
+        test_sigma_official_rule_native_corroboration,
+        test_sigma_only_candidate_does_not_change_threat_score,
+        test_sigma_replay_tool_policy_source,
     ]
     for test in tests:
         test()
