@@ -12,6 +12,7 @@
         </div>
         {% endif %}
         {% include "sections/threat_assessment.html" %}
+        {% include "sections/analysis_quality.html" %}
         {% include "sections/file.html" %}
         {% include "sections/signatures.html" %}
         {% include "sections/_summary.html" %}
@@ -19,6 +20,9 @@
     <div class="tab-pane fade" id="behavior" role="tabpanel" aria-labelledby="behavior-tab">
         {% include "sections/behavior.html" %}
     </div>
+    {% if results.capa %}
+    <div class="tab-pane fade" id="capa" role="tabpanel" aria-labelledby="capa-tab">{% include "sections/capa.html" %}</div>
+    {% endif %}
     {% if results.mitre_attack %}
     <div class="tab-pane fade" id="mitre" role="tabpanel" aria-labelledby="mitre-tab">
         {% include "sections/mitre.html" %}

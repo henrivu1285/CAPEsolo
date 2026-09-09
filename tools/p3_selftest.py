@@ -555,11 +555,11 @@ def test_shared_product_version_source():
         "shared_version_p32310", ROOT / "lib" / "common" / "frida_version.py"
     )
     assert version_module.PRODUCT_VERSION == PRODUCT_VERSION
-    assert (ROOT / "version.txt").read_text(encoding="utf-8").strip() == "0.5.31-p32316"
+    assert (ROOT / "version.txt").read_text(encoding="utf-8").strip() == "0.5.32-p32317"
     generic = json.loads(
         (ROOT / "data" / "frida_profiles" / "generic.json").read_text(encoding="utf-8")
     )
-    assert generic["schema_version"] == "3.2.3.16"
+    assert generic["schema_version"] == "3.2.3.17"
     for filename in ("frida_artifact_filter.py", "frida_behavior_compact.py"):
         source = (HERE / filename).read_text(encoding="utf-8")
         assert '"version": "P3.2.3.5"' not in source

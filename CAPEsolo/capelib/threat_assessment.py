@@ -13,7 +13,7 @@ from typing import Any
 from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION
 
 SCHEMA = "capesolo-threat-assessment/1.0"
-SCORE_VERSION = "p32316-evidence-v3"
+SCORE_VERSION = "p32317-evidence-v3"
 THRESHOLDS = {
     "benign": {"minimum": 0, "maximum": 19},
     "suspicious": {"minimum": 20, "maximum": 59},
@@ -68,7 +68,7 @@ def _attack_component(attack: dict) -> dict:
         # not inflate the maliciousness score.  When a native detector also
         # supports the same mapping, normal scoring still applies.
         sources = {str(value) for value in mapping.get("sources") or []}
-        if mapping.get("status") == "candidate" and sources and sources <= {"sigma_rule"}:
+        if mapping.get("status") == "candidate" and sources and sources <= {"sigma_rule", "capa_dynamic"}:
             continue
         family = str(mapping.get("id") or "").split(".", 1)[0]
         raw = _technique_base(mapping)
@@ -189,6 +189,14 @@ def assess_threat(results: dict) -> dict:
     uncapped_score = sum(component["points"] for component in components)
     score = min(100, uncapped_score)
     quality = _quality(attack)
+    telemetry = results.get("analysis_quality") or {}
+    quality["availability_confidence"] = quality["confidence"]
+    quality["availability_only"] = True
+    quality["telemetry_status"] = telemetry.get("status", "unknown")
+    quality["coverage_confidence"] = telemetry.get("coverage_confidence", "unknown")
+    if telemetry.get("status", "unknown") != "complete" and quality["confidence"] == "high":
+        quality["confidence"] = "medium"
+    quality["limitations"] = sorted(set(quality["limitations"] + list(telemetry.get("limitations") or []) + ([] if telemetry else ["telemetry_completeness_unknown"])))
     threshold_verdict = "malicious" if score >= 60 else "suspicious" if score >= 20 else "benign"
     verdict = threshold_verdict
     provisional = False

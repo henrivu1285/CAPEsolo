@@ -1,0 +1,33 @@
+{% set capa = results.capa %}
+{% if capa %}
+<section class="mt-4 mb-4" id="capa-results">
+  <h3>capa capabilities</h3>
+  <p>Status: <strong>{{ capa.status }}</strong> · Engine: {{ capa.engine_version or capa.expected_engine_version }} · Rules: {{ capa.rules.tag if capa.rules else 'unavailable' }}</p>
+  {% if capa.reason %}<div class="alert alert-warning">{{ capa.reason }}</div>{% endif %}
+  <p>Dynamic matches are review candidates. Static matches describe capabilities in a file; they do not prove execution. capa contributes no threat-score points.</p>
+  <h4>Dynamic · {{ capa.dynamic.status }}</h4>
+  {% if capa.dynamic.reason %}<p class="text-warning">{{ capa.dynamic.reason }}</p>{% endif %}
+  {% if capa.dynamic.counts %}<p>{{ capa.dynamic.counts.projected_calls }} API records; {{ capa.dynamic.counts.failed_status_calls }} with failed status. Repeated calls retain their original record; no timestamps are synthesized.</p>{% endif %}
+  <p>API-only projection from behavior.filtered.jsonl. capa does not validate API success. PIDs and call IDs below link back to the original evidence.</p>
+  {% set capabilities = capa.dynamic.capabilities %}
+  {% include 'sections/capa_capabilities.html' %}
+  {% if capa.dynamic.diagnostic %}<details><summary>Engine diagnostic</summary><pre>{{ capa.dynamic.diagnostic }}</pre></details>{% endif %}
+  <h4 class="mt-4">Static · {{ capa.static.status }}</h4>
+  {% for file in capa.static.files %}
+  <details class="mb-3" open>
+    <summary>{{ file.role }} · {{ file.status }} · {{ file.path }}</summary>
+    <p class="mono">SHA256: {{ file.sha256 or file.expected_sha256 }}</p>
+    {% if file.reason %}<p class="text-warning">{{ file.reason }}</p>{% endif %}
+    {% set capabilities = file.capabilities %}
+    {% include 'sections/capa_capabilities.html' %}
+  </details>
+  {% else %}<p>No static file result. Check engine status and target availability.</p>{% endfor %}
+  {% if capa.attack_comparison and capa.attack_comparison.techniques %}
+  <h4>ATT&amp;CK comparison</h4>
+  <p>capa tags are cross-referenced with the P3 catalog. P3 status and threat scores are preserved; matching tags do not establish independent confirmation.</p>
+  <div class="table-responsive"><table class="table table-dark table-striped"><thead><tr><th>P3 ID / original capa ID</th><th>P3 status / sources</th><th>Dynamic rules</th><th>Static rules</th></tr></thead><tbody>
+  {% for item in capa.attack_comparison.techniques %}<tr><td>{{ item.id }}<br><small>{{ item.original_capa_ids | join(', ') }}</small>{% if not item.catalog_known %}<br>Unknown to pinned P3 catalog{% endif %}</td><td>{{ item.p3_status }}<br><small>{{ item.p3_sources | join(', ') }}</small></td><td>{{ item.dynamic_rules | join('; ') }}</td><td>{{ item.static_rules | join('; ') }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% endif %}
+</section>
+{% endif %}

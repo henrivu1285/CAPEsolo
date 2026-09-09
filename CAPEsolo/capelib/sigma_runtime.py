@@ -137,7 +137,7 @@ def _event(category: str, fields: dict, source: str, pid: Any = None, timestamp:
 
 def _iter_calls(results: dict, clean_rows: Optional[list[dict]]) -> Iterable[tuple[dict, dict]]:
     by_pid, _ = _metadata(results)
-    if clean_rows:
+    if clean_rows is not None:
         for row in clean_rows:
             if not isinstance(row, dict) or not isinstance(row.get("call"), dict):
                 continue
@@ -155,9 +155,27 @@ def _iter_calls(results: dict, clean_rows: Optional[list[dict]]) -> Iterable[tup
             yield process, call
 
 
+def normalize_pipe_name(value: Any) -> str:
+    """Remove a Windows pipe namespace, preserving meaningful inner components."""
+    text = str(value)
+    for prefix in ("\\??\\pipe\\", "\\\\.\\pipe\\", "\\\\?\\pipe\\", "\\Device\\NamedPipe\\"):
+        if text.casefold().startswith(prefix.casefold()):
+            return "\\" + text[len(prefix):]
+    return text
+
+
+def _pid_number(value: Any) -> Optional[int]:
+    try:
+        text = str(value).strip()
+        return int(text, 16 if text.lower().startswith("0x") else 10)
+    except (ValueError, TypeError):
+        return None
+
+
 def normalize_events(results: dict, clean_rows: Optional[list[dict]] = None) -> tuple[list[dict], dict]:
     """Translate canonical P3 evidence into the Sigma default Windows fields."""
     events: list[dict] = []
+    normalization = Counter()
     by_pid, paths = _metadata(results)
     version = _version_info(results)
     root_pid = next(iter(by_pid), None)
@@ -249,10 +267,19 @@ def normalize_events(results: dict, clean_rows: Optional[list[dict]] = None) -> 
             events.append(_event("process_access", fields, "behavior_api", pid, when, api))
 
         if low in {"createremotethread", "createremotethreadex", "ntcreatethreadex", "rtlcreateuserthread"}:
+            source_pid = _pid_number(pid)
+            target_pid = _pid_number(_arg(arguments, "ProcessId", "TargetProcessId", "ProcessIdentifier"))
+            handle = _pid_number(_arg(arguments, "ProcessHandle", "hProcess"))
+            if handle in {-1, 0xffffffff, 0xffffffffffffffff} or (source_pid is not None and source_pid == target_pid):
+                normalization["self_thread_skipped"] += 1
+                continue
+            if source_pid is None or target_pid is None or target_pid <= 0:
+                normalization["thread_unknown_target_skipped"] += 1
+                continue
             fields = {
                 "EventID": 8, "SourceImage": image, "SourceProcessId": pid,
                 "TargetImage": _arg(arguments, "ProcessName", "TargetImage"),
-                "TargetProcessId": _arg(arguments, "ProcessId", "TargetProcessId"),
+                "TargetProcessId": target_pid,
                 "StartAddress": _arg(arguments, "StartAddress", "StartRoutine"),
                 "StartModule": _arg(arguments, "StartModule"), "StartFunction": _arg(arguments, "StartFunction"),
             }
@@ -261,7 +288,11 @@ def normalize_events(results: dict, clean_rows: Optional[list[dict]] = None) -> 
         if low in {"createnamedpipea", "createnamedpipew", "ntcreateNamedpipefile".casefold()}:
             pipe = _arg(arguments, "PipeName", "FileName", "ObjectName")
             if pipe:
-                events.append(_event("pipe_created", dict(common, EventID=17, PipeName=pipe), "behavior_api", pid, when, api))
+                normalized_pipe = normalize_pipe_name(pipe)
+                normalization["pipe_namespace_normalized"] += int(normalized_pipe != pipe)
+                event = _event("pipe_created", dict(common, EventID=17, PipeName=normalized_pipe), "behavior_api", pid, when, api)
+                event["evidence"].update({"raw_pipe_name": pipe, "call_id": call.get("id")})
+                events.append(event)
 
         if len(events) >= MAX_EVENTS:
             break
@@ -312,7 +343,9 @@ def normalize_events(results: dict, clean_rows: Optional[list[dict]] = None) -> 
     return events[:MAX_EVENTS], {
         "available_logsources": sorted(available),
         "event_counts": dict(sorted(counts.items())),
-        "event_limit_reached": len(events) > MAX_EVENTS,
+        "event_limit_reached": len(events) >= MAX_EVENTS,
+        "normalization": dict(normalization),
+        "logsource_semantics": "API projections use Sigma field names; synthetic EventID values do not prove that Sysmon event types were enabled.",
         "capture_complete": capture_complete,
         "raw_sysmon_eid25_exported": False,
     }

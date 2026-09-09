@@ -1,0 +1,14 @@
+<div class="table-responsive">
+<table class="table table-dark table-striped align-middle">
+<thead><tr><th>Capability</th><th>ATT&amp;CK tags / MBC</th><th>Evidence</th></tr></thead><tbody>
+{% for capability in capabilities %}
+<tr><td>{{ capability.name }}<br><small>{{ capability.namespace or '' }}</small></td>
+<td>{{ capability.attack_ids | join(', ') }}{% for item in capability.mbc %}<div class="small">{{ item.id }} {{ item.objective }} / {{ item.behavior }}</div>{% endfor %}</td>
+<td>{{ capability.match_count }} matches; {{ capability.linked_calls }} linked calls
+{% if capability.call_status_counts %}<div class="small">API status: {% for state,count in capability.call_status_counts.items() %}{{ state }}={{ count }} {% endfor %}</div>{% endif %}
+{% if capability.call_evidence %}<details><summary>Source API records</summary>
+{% for call in capability.call_evidence %}<div class="mono small">PID {{ call.pid }} / TID {{ call.thread_id }} / call {{ call.call_id }} · {{ call.api }} · status={{ call.status }} · {{ call.timestamp }}</div>{% endfor %}
+{% if capability.evidence_display_truncated %}<p>More locations in the raw result and source map.</p>{% endif %}</details>{% endif %}
+{% if capability.locations %}<details><summary>capa locations</summary><pre>{{ capability.locations | tojson(indent=2) }}</pre></details>{% endif %}</td></tr>
+{% else %}<tr><td colspan="3">No capability result available. An empty successful result does not establish absence of behavior.</td></tr>{% endfor %}
+</tbody></table></div>

@@ -233,6 +233,7 @@ def extract_behavior_chains_from_records(
     persistence: list[dict] = []
     for key, value, reg_record in run_writes:
         target = _norm_path(value)
+        registry_script = str(value).lstrip().startswith("#@~^") or ("javascript:" in str(value).lower() and "regread(" in str(value).lower())
         file_match = next((r for path, r in reversed(file_events) if target and path == target), None)
         proc_match = next((r for path, _, r in reversed(proc_events) if target and path == target), None)
         steps = []
@@ -249,12 +250,16 @@ def extract_behavior_chains_from_records(
             "registry": key,
             "target": value,
             "steps": steps,
-            "materialization_status": materialization_status,
+            "materialization_status": "not_applicable" if registry_script else materialization_status,
+            "target_kind": "registry_resident_script" if registry_script else "path_or_command",
+            "materialization_applicable": not registry_script,
             "materialization_observed": bool(file_match),
-            "missing_steps": [] if file_match else ["file_materialized"],
-            "preexisting_target_possible": not bool(file_match),
+            "missing_steps": [] if file_match or registry_script else ["file_materialized"],
+            "preexisting_target_possible": not bool(file_match) and not registry_script,
             "mitre_candidate": "T1547.001",
             "interpretation": (
+                "Registry-resident script content or a command reading it was stored; a dropped payload file is not a required step. Script execution and snapshot cleanliness are not established by this write."
+                if registry_script else
                 "File materialization, execution, and Run/RunOnce persistence were observed dynamically."
                 if file_match and proc_match else
                 "Run/RunOnce persistence was observed, but file materialization was not; restore a clean VM snapshot and verify the target path is absent before treating this as a complete drop chain."
@@ -382,7 +387,7 @@ def extract_behavior_chains_from_records(
             "confirmed_injection_sequences": sum(1 for x in injection_precursors if x.get("confirmed_injection_sequence")),
             "stage_handoffs": len(stage_handoffs),
             "persistence_without_materialization": sum(
-                1 for item in persistence if not item.get("materialization_observed")
+                1 for item in persistence if not item.get("materialization_observed") and item.get("materialization_applicable", True)
             ),
             "by_type": dict(Counter(str(x.get("chain_type")) for x in chains)),
             "duplicates_collapsed": raw_chain_count - len(chains),

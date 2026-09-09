@@ -472,6 +472,7 @@ def build_analysis_hygiene(chains_result: dict) -> dict:
         if isinstance(item, dict)
         and item.get("chain_type") == "persistence_run_key"
         and item.get("materialization_observed") is False
+        and item.get("materialization_applicable", True)
     ]
     return {
         "status": "review_required" if gaps else "no_materialization_gap_observed",

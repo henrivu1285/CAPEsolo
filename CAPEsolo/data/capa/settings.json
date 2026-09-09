@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "cache": true,
+  "dynamic": true,
+  "static": true,
+  "python": "",
+  "executable": "",
+  "rules_dir": "",
+  "signatures_dir": "",
+  "dynamic_timeout": 600,
+  "static_timeout": 180,
+  "max_static_files": 8,
+  "max_file_bytes": 67108864,
+  "max_clean_bytes": 268435456,
+  "max_calls": 250000,
+  "max_output_bytes": 134217728
+}

@@ -1,0 +1,30 @@
+{
+  "repository": "https://github.com/mandiant/capa",
+  "tag": "v9.4.0",
+  "files": [
+    {
+      "name": "1_flare_msvc_rtf_32_64.sig",
+      "sha256": "e0042918fa80d432a1914680816996ac397afc30b05d3161192f29de63e66e79",
+      "git_blob": "0edf8f7d489ff68d5e0b4fb210d655cd69669c7f",
+      "size": 4720417
+    },
+    {
+      "name": "2_flare_msvc_atlmfc_32_64.sig",
+      "sha256": "c6f6084f1553f3a4a515bcefe7a72fe2b3564c8338c01fa9add1166276bf09f1",
+      "git_blob": "a00aaafa5fd281a6768ef1831741c9853350626b",
+      "size": 7581481
+    },
+    {
+      "name": "3_flare_common_libs.sig",
+      "sha256": "6fa7dda3ffb523d2f555348db47c67b9820a40153bfacd543c9ea02a1ecd83a8",
+      "git_blob": "436b2046ab847bc0cbe868f96b121891a2d02469",
+      "size": 2877687
+    },
+    {
+      "name": "README.md",
+      "sha256": "7609b3b81f842735b89d8bfc80ca57962b8029eadf8b72bd1390b76c92b8a0f0",
+      "git_blob": "855bd77d73b40841c5b1c09012262a709df792f9",
+      "size": 544
+    }
+  ]
+}

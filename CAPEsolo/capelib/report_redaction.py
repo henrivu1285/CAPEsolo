@@ -41,12 +41,55 @@ def _redact_secret_strings(value: Any) -> Any:
     return value
 
 
+def _clipboard_copies(value, secrets):
+    """Find payloads in original calls AND already-redacted reports' derived evidence."""
+    if isinstance(value, dict):
+        if str(value.get("api") or "").lower() == "getclipboarddata":
+            for arg in value.get("arguments") or []:
+                if isinstance(arg, dict) and str(arg.get("name") or "").lower() in {"data", "text", "buffer", "clipboarddata"} and not arg.get("redacted"):
+                    for field in ("value", "raw_value"):
+                        item = arg.get(field)
+                        if isinstance(item, str) and item and not item.startswith("<redacted"):
+                            secrets.add(item)
+            details = value.get("details")
+            if isinstance(details, dict):
+                for key in list(details):
+                    if str(key).lower() in {"data", "text", "buffer", "clipboarddata", "raw_value"}:
+                        item = details[key]
+                        if isinstance(item, str) and item and not item.startswith("<redacted"):
+                            secrets.add(item)
+                        details[key] = "<redacted clipboard data>"
+                if "summary" in value:
+                    value["summary"] = "GetClipboardData: clipboard payload redacted; see call identity and status."
+        for child in value.values():
+            _clipboard_copies(child, secrets)
+    elif isinstance(value, list):
+        for child in value:
+            _clipboard_copies(child, secrets)
+
+
+def _scrub_copies(value, pattern):
+    if isinstance(value, dict):
+        for key, child in list(value.items()):
+            # Integrity digests are correlation metadata, never clipboard text.
+            if key not in {"sha256", "content_sha256", "md5", "sha1"}:
+                value[key] = _scrub_copies(child, pattern)
+    elif isinstance(value, list):
+        for i, child in enumerate(value):
+            value[i] = _scrub_copies(child, pattern)
+    elif isinstance(value, str):
+        return pattern.sub("<redacted clipboard data>", value)
+    return value
+
+
 def redact_report_in_place(results: dict) -> dict:
     """Redact clipboard payloads from a completed integrated report.
 
     Detection must run before this function. ``behavior.filtered.jsonl`` and
     the CAPEMON logs are deliberately untouched and remain the audit source.
     """
+    secrets = set()
+    _clipboard_copies(results, secrets)
     redacted = 0
     captured_bytes = 0
     hashes = []
@@ -82,6 +125,11 @@ def redact_report_in_place(results: dict) -> dict:
     # MITRE evidence summaries, signatures or errors can repeat a configured
     # token. Scrub the exact option assignment without rewriting unrelated
     # behavior strings.
+    if secrets:
+        # Boundaries for very short payloads avoid changing unrelated API names.
+        pattern = re.compile("|".join((r"(?<!\w)" + re.escape(v) + r"(?!\w)") if len(v) < 8 else re.escape(v)
+                                      for v in sorted(secrets, key=len, reverse=True)))
+        _scrub_copies(results, pattern)
     _redact_secret_strings(results)
     previous = results.get("report_redaction") or {}
     results["report_redaction"] = {
@@ -91,6 +139,7 @@ def redact_report_in_place(results: dict) -> dict:
         "clipboard_fields_redacted": int(previous.get("clipboard_fields_redacted") or 0) + redacted,
         "captured_bytes_redacted": int(previous.get("captured_bytes_redacted") or 0) + captured_bytes,
         "content_sha256": sorted(set(list(previous.get("content_sha256") or []) + hashes)),
+        "derived_clipboard_evidence_redacted": True,
         "raw_evidence_preserved": ["behavior.filtered.jsonl", "behavior.provenance.jsonl", "analysis.log"],
         "interpretation": "Clipboard payloads are hidden in JSON/HTML. Hashes and lengths support correlation; canonical raw evidence remains lossless.",
     }

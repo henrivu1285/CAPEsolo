@@ -280,6 +280,13 @@ def GetResults(targetFile, analysisDir, writeFile=True, includeStrings=True, pca
             "coverage_warnings": [{"code": "mapper_failed", "severity": "error", "message": str(e)}],
         }
     try:
+        from CAPEsolo.capelib.capa_integration import enrich_report
+        enrich_report(results, analysisDir, static_file=targetFile)
+    except Exception as e:
+        log.exception("Could not build capa/quality enrichment: %s", e)
+        results["capa"] = {"status": "integration_error", "reason": str(e), "dynamic": {"status": "not_run", "capabilities": []}, "static": {"status": "not_run", "files": []}}
+        results["analysis_quality"] = {"status": "unknown", "limitations": ["quality_enrichment_failed"]}
+    try:
         results["threat_assessment"] = assess_threat(results)
     except Exception as e:
         # Scoring is an enrichment layer. A failure must stay visible but must
@@ -296,6 +303,13 @@ def GetResults(targetFile, analysisDir, writeFile=True, includeStrings=True, pca
     # evidence, while the shareable JSON/HTML receives only safe presentation
     # values. Lossless behavior files in the analysis directory are untouched.
     redact_report_in_place(results)
+    # The standalone mapping is a presentation artifact too.
+    try:
+        from CAPEsolo.capelib.capa_integration import atomic_json
+        atomic_json(Path(analysisDir) / "mitre_attack.json", results["mitre_attack"])
+        atomic_json(Path(analysisDir) / "report.json", results)
+    except OSError as exc:
+        log.warning("Could not refresh redacted MITRE artifact: %s", exc)
     if writeFile:
         return WriteJsonFile(results, analysisDir=analysisDir)
     else:

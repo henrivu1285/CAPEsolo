@@ -1,6 +1,6 @@
 {
   "name": "generic",
-  "description": "P3.2.3.16 generic profile with evidence-first MITRE ATT&CK mapping, attempted-action semantics, shareable-report redaction, segment-aware clock correlation, standalone HTML reporting, task-scoped external PCAP, Sysmon EID3/EID22 attribution, active-time child observation, and prewarm-gated Frida enrollment.",
+  "description": "P3.2.3.17 generic profile with evidence-first MITRE ATT&CK mapping, attempted-action semantics, shareable-report redaction, segment-aware clock correlation, standalone HTML reporting, task-scoped external PCAP, Sysmon EID3/EID22 attribution, active-time child observation, and prewarm-gated Frida enrollment.",
   "target": {
     "name": ""
   },
@@ -74,7 +74,7 @@
   "child_root_ready_timeout": 10.0,
   "sysmon_tampering_init_window": 3.0,
   "capemon_fallback_delay": 2.0,
-  "schema_version": "3.2.3.16",
+  "schema_version": "3.2.3.17",
   "p3_max_evidence": 5000,
   "capemon_activation_timeout": 20.0,
   "child_root_priority_window": 0.35,

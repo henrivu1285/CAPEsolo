@@ -293,11 +293,19 @@ class AttackMapper:
         return direct or self.p3_report.get("behavior_chains") or {}
 
     def _clean_rows(self):
+        if self.analysis_path and (self.analysis_path / "behavior.snapshot.json").is_file():
+            try:
+                from CAPEsolo.capelib.evidence_snapshot import validate_snapshot
+                validate_snapshot(self.analysis_path, self.results, _safe_json(self.analysis_path / "frida_p3_runtime.json"))
+            except (OSError, ValueError, KeyError) as exc:
+                self.warnings.append({"code": "clean_snapshot_invalid", "severity": "error", "message": str(exc)})
+                self.chains = {}
+                return [], "invalid_snapshot_no_raw_fallback"
         for path in _find(self.analysis_path, "behavior.filtered.jsonl", "behavior.filtered*.jsonl"):
             try:
                 rows = [json.loads(line) for line in path.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
                 rows = [row for row in rows if isinstance(row, dict) and isinstance(row.get("call"), dict) and not row.get("filter_from_clean_view")]
-                if rows: return rows, path.name
+                return rows, path.name
             except (OSError, ValueError): pass
         return [], "raw_behavior_fallback"
 
@@ -352,7 +360,7 @@ class AttackMapper:
         if fp not in old and len(row["evidence"]) < MAX_EVIDENCE: row["evidence"].append(evidence)
 
     def _all_calls(self):
-        if self.clean_rows:
+        if self.clean_source != "raw_behavior_fallback":
             for row in self.clean_rows:
                 call = row.get("call") or {}
                 yield {"process_id": row.get("pid"), "process_name": row.get("process_name"), "module_path": row.get("process_path")}, call
@@ -998,7 +1006,7 @@ class AttackMapper:
         useful independent candidates, but a native P3 semantic detector or
         validated state machine is still required for ``observed``.
         """
-        self.sigma_report = evaluate_sigma(self.results, self.analysis_path, self.clean_rows)
+        self.sigma_report = evaluate_sigma(self.results, self.analysis_path, None if self.clean_source == "raw_behavior_fallback" else self.clean_rows)
         if not self.sigma_report.get("available"):
             self.warnings.append({
                 "code": "sigma_pack_unavailable", "severity": "warning",
@@ -1071,7 +1079,7 @@ class AttackMapper:
         if self.p3_report and (self.p3_report.get("telemetry_continuity") or {}).get("status") not in {None, "complete_observed"}:
             self.warnings.append({"code": "behavior_continuity_degraded", "severity": "warning", "message": "Behavior continuity was degraded; some techniques may be missing."})
         return {
-            "behavior": {"available": bool(processes), "processes": len(processes), "raw_calls": raw_calls, "clean_calls": len(self.clean_rows) if self.clean_rows else raw_calls, "source": self.clean_source},
+            "behavior": {"available": bool(processes), "processes": len(processes), "raw_calls": raw_calls, "clean_calls": len(self.clean_rows) if self.clean_source != "raw_behavior_fallback" else raw_calls, "source": self.clean_source},
             "signatures": {"matched": len(signatures), "with_attack_ids": sum(bool(row.get("ttps")) for row in signatures if isinstance(row, dict))},
             "behavior_chains": {"available": bool(self.chains), "chains": len(self.chains.get("chains") or []) if isinstance(self.chains, dict) else 0},
             "network": self._network_quality(), "sigma": self.sigma_report.get("coverage") or {},
