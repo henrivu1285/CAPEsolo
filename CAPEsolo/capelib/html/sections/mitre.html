@@ -83,6 +83,23 @@
     <div class="alert alert-warning">Sigma evaluation unavailable: {{ sigma.reason }}. Native P3 ATT&amp;CK mapping remains active.</div>
     {% endif %}
 
+    {% if attack.car_review %}
+    <div class="card mb-3">
+        <div class="card-header">CAR native-detector review</div>
+        <div class="card-body">
+            {% if attack.car_review.available %}
+            <p>{{ attack.car_review.native_literal_rules_reviewed }} native rule IDs reviewed. CAR commit <code>{{ attack.car_review.commit }}</code>.</p>
+            <p>{{ attack.car_review.meaning }}</p>
+            <details><summary>Relations for rules that matched this run</summary>
+                {% for mapping in attack.mappings %}
+                {% if mapping.car_review %}<p><strong>{{ mapping.id }}</strong></p><ul>
+                    {% for binding in mapping.car_review %}<li><code>{{ binding.rule_id }}</code> — {{ binding.review.relation or 'not_reviewed' }}; {{ (binding.review.car_ids or []) | join(', ') }}. {{ binding.review.logic_review }}</li>{% endfor %}
+                </ul>{% endif %}{% endfor %}
+            </details>
+            {% else %}<p>CAR review metadata unavailable: {{ attack.car_review.error }}. Native results are not represented as CAR-validated.</p>{% endif %}
+        </div>
+    </div>
+    {% endif %}
     {% set detector_coverage = attack.coverage.detectors if attack.coverage else {} %}
     {% if detector_coverage.domains %}
     <div class="card mb-4">

@@ -64,6 +64,9 @@ def collect_quality(results, analysis_dir, finalizer=None):
         limitations.append("finalizer_quality_unavailable")
     if not clean_count:
         limitations.append("clean_behavior_missing_or_empty")
+    if "target_pid" in runtime and not runtime.get("target_pid") and not runtime.get("lineage"):
+        limitations.append("target_lineage_unresolved")
+        axes["target_attribution"] = "degraded"
     if axes.get("frida_child") in {"partial", "capemon_only", "capemon_observed_prewarm_unavailable"}:
         limitations.append("frida_child_partial_capemon_may_still_be_present")
     if (network.get("packet_loss") or {}).get("status") == "unknown":
@@ -106,7 +109,10 @@ def collect_quality(results, analysis_dir, finalizer=None):
         "disabled_hooks": sorted(hooks), "limitations": limitations,
         "background_rate_caps": background, "by_pid_api": pid_caps,
         "evidence_consistency": {"status": snapshot_status, "origin": snapshot_origin},
-        "network": {"flows": network.get("flows", {}), "packet_loss": network.get("packet_loss", {}), "clock_status": clock.get("status", "unknown")},
+        "network": {"flows": network.get("flows", {}), "packet_loss": network.get("packet_loss", {}), "clock_status": clock.get("status", "unknown"),
+                    "clock_offset_span_seconds": clock.get("offset_span_seconds"),
+                    "clock_compensation_is_not_stability": True},
+        "unpacking_evidence": results.get("unpacking_evidence") or {},
         "clean_snapshot_verified": False,
         "interpretation": "Collection completion does not imply complete API coverage. Missing capability matches cannot establish absence of behavior. Sigma EventID projections do not establish Sysmon configuration.",
     }

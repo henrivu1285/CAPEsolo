@@ -6,6 +6,8 @@
   {% if capa.reason %}<div class="alert alert-warning">{{ capa.reason }}</div>{% endif %}
   <p>Dynamic matches are review candidates. Static matches describe capabilities in a file; they do not prove execution. capa contributes no threat-score points.</p>
   <h4>Dynamic · {{ capa.dynamic.status }}</h4>
+  {% set timing = capa.dynamic %}{% include 'sections/capa_timing.html' %}
+  {% if capa.execution_settings %}<p>Configured timeouts: dynamic {{ capa.execution_settings.dynamic_timeout }} s; static {{ capa.execution_settings.static_timeout }} s per file.</p>{% endif %}
   {% if capa.dynamic.reason %}<p class="text-warning">{{ capa.dynamic.reason }}</p>{% endif %}
   {% if capa.dynamic.counts %}<p>{{ capa.dynamic.counts.projected_calls }} API records; {{ capa.dynamic.counts.failed_status_calls }} with failed status. Repeated calls retain their original record; no timestamps are synthesized.</p>{% endif %}
   <p>API-only projection from behavior.filtered.jsonl. capa does not validate API success. PIDs and call IDs below link back to the original evidence.</p>
@@ -17,6 +19,7 @@
   <details class="mb-3" open>
     <summary>{{ file.role }} · {{ file.status }} · {{ file.path }}</summary>
     <p class="mono">SHA256: {{ file.sha256 or file.expected_sha256 }}</p>
+    {% set timing = file %}{% include 'sections/capa_timing.html' %}
     {% if file.reason %}<p class="text-warning">{{ file.reason }}</p>{% endif %}
     {% set capabilities = file.capabilities %}
     {% include 'sections/capa_capabilities.html' %}

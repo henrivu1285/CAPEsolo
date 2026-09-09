@@ -127,12 +127,12 @@ def _artifact_details(classification: dict) -> dict:
     p = Path(path) if path else None
     size = None
     digest = None
-    actual_mz = None
+    actual_pe = None
     if p and p.is_file():
         try:
             size = p.stat().st_size
-            with p.open("rb") as fh:
-                actual_mz = fh.read(2) == b"MZ"
+            from tools.frida_artifact_filter import artifact_is_pe
+            actual_pe = artifact_is_pe(classification, p)
         except OSError:
             pass
         digest = _sha256(p)
@@ -141,8 +141,8 @@ def _artifact_details(classification: dict) -> dict:
         out["size"] = size
     if digest is not None:
         out["sha256"] = digest
-    if actual_mz is not None:
-        out["is_pe"] = actual_mz or bool(out.get("is_pe"))
+    if actual_pe is not None:
+        out["is_pe"] = actual_pe
     return out
 
 
@@ -162,6 +162,8 @@ def _attach_outcome_summary(events: list[dict], log_text: str) -> dict:
     `frida_attach` events as the source of truth, while retaining a legacy log
     fallback for older runs.
     """
+    from CAPEsolo.lib.common.frida_attach_diagnostics import normalize_attach_events
+    events = normalize_attach_events(events)
     terminal = {}
     late_cleanup = 0
     for event in events:
@@ -213,6 +215,7 @@ def _attach_outcome_summary(events: list[dict], log_text: str) -> dict:
         "success": 0,
         "failed_exception": 0,
         "target_died": 0,
+        "process_terminating": 0,
         "timeout": 0,
         "device_unavailable": 0,
         "stop_requested": 0,
@@ -243,6 +246,8 @@ def _process_instrumentation_summary(
     events: list[dict], lineage: dict, log_text: str = ""
 ) -> dict:
     """Resolve the latest usable instrumentation state for every tracked PID."""
+    from CAPEsolo.lib.common.frida_attach_diagnostics import normalize_attach_events
+    events = normalize_attach_events(events)
     by_pid: dict[str, dict] = {}
 
     def ensure(pid, role=None):
@@ -1003,14 +1008,12 @@ def build_report(analysis_dir: Path, output_dir: Path | None = None) -> dict:
         _artifact_identity(item) for item in retained
         if item.get("is_pe") and _artifact_identity(item)
     }
-    if not raw_unpacker:
-        unpacker_confidence = "none"
-    elif retained_pe_payloads > 0:
-        unpacker_confidence = "high"
-    elif instrumentation or instrumentation_possible:
-        unpacker_confidence = "low"
-    else:
-        unpacker_confidence = "medium"
+    from CAPEsolo.capelib.unpacking_evidence import evaluate_unpacking
+    unpack_source = _load_json(analysis_dir / "report.json")
+    if not unpack_source.get("signatures"):
+        unpack_source["signatures"] = [{"name": name} for name in signatures]
+    unpacking = evaluate_unpacking(unpack_source, analysis_dir, artifact_result, runtime)
+    unpacker_confidence = unpacking["confidence"]
 
     root_ready = bool(_first_event(events, "root_instrumentation_ready")) or "Root instrumentation ready" in log_text
     gate_events = [
@@ -1075,9 +1078,9 @@ def build_report(analysis_dir: Path, output_dir: Path | None = None) -> dict:
     )
 
     rate_cap_lines = [line for line in log_text.splitlines() if API_RATE_CAP_RE.search(line)]
-    rate_cap_apis = _unique_in_order([
-        m.group(1) for line in rate_cap_lines for m in [API_RATE_CAP_RE.search(line)] if m
-    ])
+    coverage = compact_result.get("api_coverage") or {}
+    rate_cap_apis = coverage.get("disabled_hooks", [])
+    rate_cap_lines = coverage.get("examples", [])
 
     profile_info = runtime.get("profile") if isinstance(runtime.get("profile"), dict) else {}
     if not profile_info:
@@ -1208,6 +1211,7 @@ def build_report(analysis_dir: Path, output_dir: Path | None = None) -> dict:
             "signatures_generated": signatures,
             "unpacker_signature": raw_unpacker,
             "unpacker_evidence": {
+                **unpacking,
                 "raw_signature": raw_unpacker,
                 "retained_pe_payloads": retained_pe_payloads,
                 "confirmed_instrumentation_artifacts": len(instrumentation),
@@ -1217,7 +1221,9 @@ def build_report(analysis_dir: Path, output_dir: Path | None = None) -> dict:
             "coverage": {
                 "api_rate_cap_detected": bool(rate_cap_apis),
                 "disabled_hooks": rate_cap_apis,
-                "rate_cap_event_count": len(rate_cap_lines),
+                "rate_cap_event_count": coverage.get("rate_cap_event_count", 0),
+                "background_rate_caps": coverage.get("background_rate_caps", []),
+                "by_pid_api": coverage.get("by_pid_api", {}),
                 "examples": rate_cap_lines[:10],
                 "status": api_coverage_status,
                 "framework_only_rate_caps": (
@@ -1369,7 +1375,7 @@ def write_report(report: dict, output_dir: Path) -> tuple[Path, Path]:
         f"profile: {p.get('selected') or ((p.get('selection') or {}).get('selected'))}",
         f"root instrumentation ready: {report.get('instrumentation', {}).get('root_ready')}",
         f"gate: mode={report.get('instrumentation', {}).get('gate_mode')} status={report.get('instrumentation', {}).get('gate_status')} released={report.get('instrumentation', {}).get('gate_released')}",
-        f"Frida attach: attempts={((report.get('instrumentation', {}).get('frida_attach') or {}).get('attempts', 0))} success={((report.get('instrumentation', {}).get('frida_attach') or {}).get('success', 0))} failed_exception={((report.get('instrumentation', {}).get('frida_attach') or {}).get('failed_exception', 0))} target_died={((report.get('instrumentation', {}).get('frida_attach') or {}).get('target_died', 0))} timeout={((report.get('instrumentation', {}).get('frida_attach') or {}).get('timeout', 0))} device_unavailable={((report.get('instrumentation', {}).get('frida_attach') or {}).get('device_unavailable', 0))}",
+        f"Frida attach: attempts={((report.get('instrumentation', {}).get('frida_attach') or {}).get('attempts', 0))} success={((report.get('instrumentation', {}).get('frida_attach') or {}).get('success', 0))} failed_exception={((report.get('instrumentation', {}).get('frida_attach') or {}).get('failed_exception', 0))} target_died={((report.get('instrumentation', {}).get('frida_attach') or {}).get('target_died', 0))} process_terminating={((report.get('instrumentation', {}).get('frida_attach') or {}).get('process_terminating', 0))} timeout={((report.get('instrumentation', {}).get('frida_attach') or {}).get('timeout', 0))} device_unavailable={((report.get('instrumentation', {}).get('frida_attach') or {}).get('device_unavailable', 0))}",
         f"Frida process outcomes: counts={process_outcomes.get('counts', {})} setup_failures={report.get('instrumentation', {}).get('frida_script_setup_failures', 0)}",
         f"Telemetry continuity: status={continuity.get('status')} suspected={continuity.get('suspected_gaps', 0)} high_confidence={continuity.get('high_confidence_gaps', 0)}",
         f"Early agent: enabled={((report.get('instrumentation', {}).get('lifecycle') or {}).get('early_agent') or {}).get('enabled', False)} roles={((report.get('instrumentation', {}).get('lifecycle') or {}).get('early_agent') or {}).get('roles', [])}",
@@ -1433,6 +1439,10 @@ def write_report(report: dict, output_dir: Path) -> tuple[Path, Path]:
         output_dir / "frida_behavior_chains.json",
         output_dir / "behavior.chains.jsonl",
     ]
+    from CAPEsolo.capelib.report_refresh import refresh_report_quality
+    refresh_report_quality(output_dir, report)
+    derived.extend(output_dir / name for name in ("behavior.snapshot.json", "analysis_quality.json", "capa_execution.json", "report_refresh.json",
+                     "report.json", "report.html", "mitre_attack.json", "capa_analysis.json", "capa_dynamic_sources.json"))
     _mirror_derived_files(output_dir, (report.get("run") or {}).get("run_id"), derived)
     return json_path, txt_path
 

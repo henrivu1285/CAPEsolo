@@ -17,7 +17,7 @@
             <th style="border-top: 0; width: 15%;">Filename</th>
             <td>
                 {% for name in file.name|str2list %}
-                <div style="border-top: 0; word-wrap: break-word;"><b>{{name|safe}}</b></div>
+                <div style="border-top: 0; word-wrap: break-word;"><b>{{name}}</b></div>
                 {% endfor %}
             </td>
         </tr>
@@ -276,6 +276,7 @@
                 <div class="collapse" id="extracted_files_{{file_uid}}">
                     <div class="table">
                         {% for sub_file in file.extracted_files %}
+                            {% set sub_file_scope = file_uid ~ '_sub_' ~ loop.index0 %}
                             {% include "generic/_subfile_info.html" %}
                         {% endfor %}
                     </div>

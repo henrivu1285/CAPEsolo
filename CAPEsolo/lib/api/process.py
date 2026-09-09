@@ -767,7 +767,7 @@ class Process:
                 # P3 controller options belong to the Python auxiliary and are
                 # not CAPEMON monitor directives.  Passing them through creates
                 # noisy "unrecognized option" warnings in every process.
-                if optname.startswith("frida_") or optname == OPT_CURDIR:
+                if optname.startswith(("frida_", "pcap_")) or optname == OPT_CURDIR:
                     continue
                 if optname not in server_options:
                     config.write(f"{optname}={option}\n")

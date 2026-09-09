@@ -14,6 +14,8 @@ import psutil
 
 from lib.common.abstracts import Auxiliary
 from lib.common.frida_version import PRODUCT_VERSION
+from lib.common.frida_attach_diagnostics import classify_attach_failure
+from lib.common.validation_scope import matches_validation_script
 
 try:
     from lib.common.sysmon_bridge import SysmonRealtimeBridge
@@ -1498,7 +1500,7 @@ class FridaMuncher(Auxiliary):
         except Exception:
             return False
 
-    def _candidate_scope_matches(self, name, exe_path):
+    def _candidate_scope_matches(self, name, exe_path, command_line=None):
         """Return True only for a process belonging to this CAPE analysis.
 
         Selection priority:
@@ -1506,6 +1508,9 @@ class FridaMuncher(Auxiliary):
           2. Generic mode: any NEW executable whose path is under curdir.
           3. If curdir is unavailable, an explicit frida_target is required.
         """
+        validation_script = self.options.get("frida_validation_script")
+        if validation_script:
+            return matches_validation_script(name, command_line, validation_script)
         if self.target_name:
             if not name or str(name).lower() != self.target_name.lower():
                 return False
@@ -1573,7 +1578,7 @@ class FridaMuncher(Auxiliary):
                 pid, ctime, exe_path = self._get_identity(proc)
                 name = proc.info.get("name")
 
-                if not self._candidate_scope_matches(name, exe_path):
+                if not self._candidate_scope_matches(name, exe_path, proc.cmdline() if self.options.get("frida_validation_script") else None):
                     continue
 
                 snapshot[pid] = {
@@ -1627,7 +1632,11 @@ class FridaMuncher(Auxiliary):
 
         pid, create_time, exe_path = self._get_identity(proc)
 
-        if not self._candidate_scope_matches(name, exe_path):
+        try:
+            command_line = proc.cmdline() if self.options.get("frida_validation_script") else None
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return False
+        if not self._candidate_scope_matches(name, exe_path, command_line):
             return False
 
         if self._same_as_baseline_process(pid, create_time):
@@ -3063,7 +3072,7 @@ class FridaMuncher(Auxiliary):
 
         error = result.get("error") or "Frida early attach returned no session"
         error_type = result.get("error_type") or "UnknownError"
-        status = "failed_exception" if alive else "target_died"
+        status = classify_attach_failure(error, alive)
         self._record_attach_outcome(
             pid, ticket["attempt"], status, started,
             error=error, error_type=error_type, **common,
@@ -3246,7 +3255,7 @@ class FridaMuncher(Auxiliary):
 
         error = result.get("error") or "Frida attach returned no session"
         error_type = result.get("error_type") or "UnknownError"
-        status = "failed_exception" if alive else "target_died"
+        status = classify_attach_failure(error, alive)
         self._record_attach_outcome(
             pid, attempt, status, started,
             error=error, error_type=error_type, **common,
@@ -3284,7 +3293,7 @@ class FridaMuncher(Auxiliary):
 
             # A timed-out RPC is still executing in a daemon worker and will
             # self-detach if it completes late; do not start a concurrent retry.
-            if outcome in {"target_died", "timeout", "stop_requested", "device_unavailable"}:
+            if outcome in {"target_died", "process_terminating", "timeout", "stop_requested", "device_unavailable"}:
                 return None, outcome
 
             if attempt < self.attach_retries:
@@ -3715,7 +3724,9 @@ class FridaMuncher(Auxiliary):
             self.failed_identities.add(identity_key)
             terminal = attach_outcome or early_outcome or "attach_failed_unknown"
             interference_possible = False
-            if role == "child" and terminal == "target_died":
+            if terminal == "process_terminating":
+                status = "process_terminating_during_attach"
+            elif role == "child" and terminal == "target_died":
                 status = "target_died_during_optional_attach"
                 interference_possible = True
             elif terminal == "target_died":

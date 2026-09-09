@@ -15,9 +15,10 @@ from typing import Any, Optional
 
 from CAPEsolo.capelib.attack_state import EvidenceEvent, SequenceRule, evaluate_distinct, evaluate_sequence, parse_timestamp
 from CAPEsolo.capelib.sigma_runtime import evaluate_sigma
-from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION
+from CAPEsolo.capelib import native_semantics as ns
+from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION, PROCESSOR_REVISION
 
-SCHEMA = "capesolo-mitre-attack/1.4"
+SCHEMA = "capesolo-mitre-attack/1.5"
 ATTACK_VERSION = "19.2"
 ATTACK_DOMAIN = "enterprise-attack"
 ACTIVE_PLATFORM = "Windows"
@@ -127,8 +128,8 @@ def _args(call: dict) -> dict:
 
 
 def _text(call: dict) -> str: return " ".join(str(value or "") for value in _args(call).values())
-def _path(value: Any) -> str: return str(value or "").strip().strip('"').replace("/", "\\").lower()
-def _success(call: dict) -> bool: return call.get("status") is not False and str(call.get("return") or "").lower() not in {"0xffffffff", "-1", "false", "error"}
+def _path(value: Any) -> str: return ns.path(value)
+def _success(call: dict) -> bool: return ns.success(call)
 
 
 def _basename(value: Any) -> str:
@@ -181,7 +182,8 @@ def _image_format(path: Any, buffer: Any = None, raw_buffer: Any = None) -> Opti
 
 def _smtp_command(value: Any) -> Optional[str]:
     """Parse an SMTP command verb from a structured send buffer."""
-    first = str(value or "").lstrip().split(None, 1)[0].upper().rstrip(":")
+    tokens = str(value or "").lstrip().split(None, 1)
+    first = tokens[0].upper().rstrip(":") if tokens else ""
     return first if first in {"EHLO", "HELO", "MAIL", "RCPT", "DATA", "AUTH", "RSET", "QUIT", "STARTTLS"} else None
 
 
@@ -304,9 +306,17 @@ class AttackMapper:
         for path in _find(self.analysis_path, "behavior.filtered.jsonl", "behavior.filtered*.jsonl"):
             try:
                 rows = [json.loads(line) for line in path.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
-                rows = [row for row in rows if isinstance(row, dict) and isinstance(row.get("call"), dict) and not row.get("filter_from_clean_view")]
+                rows = [row for row in rows if isinstance(row, dict) and isinstance(row.get("call"), dict) and not row.get("filter_from_clean_view") and row.get("provenance") != "framework_frida"]
+                unknown = sum(row.get("provenance") == "unknown" for row in rows)
+                if unknown:
+                    self.warnings.append({"code": "unknown_pid_provenance_excluded", "severity": "warning", "count": unknown,
+                                          "message": "Unknown ownership cannot support sample detections."})
+                    rows = [row for row in rows if row.get("provenance") not in {"unknown", "framework_frida"}]
                 return rows, path.name
-            except (OSError, ValueError): pass
+            except (OSError, ValueError) as exc:
+                self.warnings.append({"code":"clean_behavior_invalid", "severity":"error", "message":str(exc)})
+                self.chains = {}
+                return [], "invalid_clean_no_raw_fallback"
         return [], "raw_behavior_fallback"
 
     def _technique(self, technique_id: str) -> dict:
@@ -327,8 +337,10 @@ class AttackMapper:
             if role: result["role"] = role
         name = process.get("process_name") or call.get("process_name")
         if name: result["process_name"] = _compact(name, 120)
-        for key in ("timestamp", "api"):
-            if call.get(key) is not None: result[key] = _compact(call.get(key), 120)
+        for key in ("timestamp", "api", "call_id"):
+            if key == "call_id" and call.get(key) is None and call.get("id") is not None:
+                result[key] = call["id"]
+            if call.get(key) is not None: result[key] = call[key] if key == "call_id" else _compact(call.get(key), 120)
         if details: result["details"] = {str(key): _compact(value) for key, value in details.items() if value not in (None, "", [], {})}
         return result
 
@@ -336,6 +348,7 @@ class AttackMapper:
         technique_id, normalized = normalize_technique_id(technique_id)
         if not technique_id or status not in STATUS_RANK: return
         original_id = original_id or normalized
+        evidence = dict(evidence, rule_id=rule_id, rule_status=status, rule_confidence=confidence)
         if status == "insufficient_evidence":
             row = self._technique(technique_id); row.update({"status": status, "confidence": confidence, "rule_id": rule_id, "rationale": rationale, "evidence": [evidence]})
             if state: row["state_machine"] = state
@@ -346,8 +359,17 @@ class AttackMapper:
         row = self.mappings.get(technique_id)
         if row is None:
             row = self._technique(technique_id); row.update({"status": status, "confidence": confidence, "rule_ids": [], "rationales": [], "evidence": [], "sources": [], "state_machines": []}); self.mappings[technique_id] = row
-        elif STATUS_RANK[status] > STATUS_RANK[row["status"]]: row["status"] = status
-        if CONFIDENCE_RANK.get(confidence, 0) > CONFIDENCE_RANK.get(row.get("confidence"), 0): row["confidence"] = confidence
+        elif STATUS_RANK[status] > STATUS_RANK[row["status"]]:
+            row["status"] = status; row["confidence"] = confidence
+        elif status == row["status"] and CONFIDENCE_RANK.get(confidence, 0) > CONFIDENCE_RANK.get(row.get("confidence"), 0):
+            row["confidence"] = confidence
+        bindings = row.setdefault("rule_matches", {})
+        binding = bindings.setdefault(rule_id, {"status": status, "confidence": confidence, "evidence": [], "matched_records": 0})
+        binding["matched_records"] += 1
+        if STATUS_RANK[status] > STATUS_RANK[binding["status"]]:
+            binding["status"] = status; binding["confidence"] = confidence
+        if len(binding["evidence"]) < 3 and evidence not in binding["evidence"]:
+            binding["evidence"].append(evidence)
         if rule_id not in row["rule_ids"]: row["rule_ids"].append(rule_id)
         if rationale not in row["rationales"]: row["rationales"].append(rationale)
         if evidence.get("source") and evidence["source"] not in row["sources"]: row["sources"].append(evidence["source"])
@@ -362,14 +384,18 @@ class AttackMapper:
     def _all_calls(self):
         if self.clean_source != "raw_behavior_fallback":
             for row in self.clean_rows:
-                call = row.get("call") or {}
+                if not ns.integer(row.get("pid")):
+                    continue
+                call = dict(row.get("call") or {})
+                call.setdefault("call_id", row.get("call_id"))
+                call.setdefault("timestamp", row.get("timestamp"))
                 yield {"process_id": row.get("pid"), "process_name": row.get("process_name"), "module_path": row.get("process_path")}, call
             return
         for process in (self.results.get("behavior") or {}).get("processes") or []:
-            if not isinstance(process, dict): continue
+            if not isinstance(process, dict) or not ns.integer(process.get("process_id")) or process.get("provenance") in {"unknown", "framework_frida"}: continue
             for call in process.get("calls") or []:
                 if not isinstance(call, dict) or call.get("filter_from_clean_view") is True: continue
-                if call.get("provenance") == "framework_frida" or "frida-agent" in _text(call).lower(): continue
+                if call.get("provenance") in {"framework_frida", "unknown"} or "frida-agent" in _text(call).lower(): continue
                 yield process, call
 
     def _calls(self):
@@ -413,6 +439,8 @@ class AttackMapper:
         if not processes:
             return
         process = processes[0]
+        if self.clean_source != "raw_behavior_fallback" and not any(str(r.get("pid")) == str(process.get("process_id")) for r in self.clean_rows):
+            return
         runtime_path = _path(process.get("module_path"))
         runtime_name = _basename(process.get("process_name") or runtime_path)
         if not runtime_path or not runtime_name or runtime_name == original:
@@ -474,13 +502,21 @@ class AttackMapper:
         )}
         processes = (self.results.get("behavior") or {}).get("processes") or []
         module_paths = {_path(proc.get("module_path")) for proc in processes if isinstance(proc, dict) and proc.get("module_path")}
-        handle_targets = {}
+        targets = ns.ProcessTargets()
 
         # The name hypothesis is bound to target metadata instead of whichever
         # API happened to be visited first.
         for process in processes:
             if not isinstance(process, dict): continue
+            if self.clean_source != "raw_behavior_fallback" and not any(str(r.get("pid")) == str(process.get("process_id")) for r in self.clean_rows):
+                continue
             name = str(process.get("process_name") or Path(str(process.get("module_path") or "")).name)
+            executable = _basename(name)
+            interpreter_ids = {"powershell.exe":"T1059.001", "pwsh.exe":"T1059.001", "cmd.exe":"T1059.003", "wscript.exe":"T1059.005", "cscript.exe":"T1059.005", "python.exe":"T1059.006", "pythonw.exe":"T1059.006", "node.exe":"T1059.007"}
+            if executable in interpreter_ids and process.get("process_id") and process.get("provenance") not in {"unknown", "framework_frida"}:
+                evidence = self._evidence("process_metadata", "Interpreter process was recorded: " + name, process,
+                    {"timestamp": process.get("first_seen")}, {"binding":"recorded process identity", "event_record_id": process.get("event_record_id")})
+                self.add(interpreter_ids[executable], "observed", "high", "execution.command_interpreter", "Recorded interpreter process identity supports execution; malicious intent is not implied.", evidence)
             if re.search(r"\.(?:pdf|docx?|xlsx?|jpg|png|txt|scr)\.(?:exe|scr|com|bat|cmd)$", name, re.I):
                 evidence = self._evidence("target_metadata", f"Double executable extension in analyzed process name: {name}", process, details={"binding": "process_metadata"})
                 self.add("T1036.007", "candidate", "medium", "masquerading.double_extension", "A double-extension executable name was observed; analyst-controlled naming remains possible.", evidence)
@@ -492,7 +528,7 @@ class AttackMapper:
             evidence = self._evidence("behavior_api", f"{api}: {text}", process, call, args)
 
             # Registry and persistence sensor adapter.
-            if low_api.startswith(("regsetvalue", "regdelete")):
+            if low_api in ns.REGISTRY_SET or low_api.startswith("regdelete") or low_api in {"ntdeletevaluekey", "ntdeletekey"}:
                 self.add("T1112", "observed", "medium", "registry.modify", "A successful registry modification was observed.", evidence)
             elif low_api.startswith("regcreatekey"):
                 self.add("T1112", "candidate", "medium", "registry.open_or_create", "A key was opened/created; disposition does not prove modification.", evidence)
@@ -509,28 +545,32 @@ class AttackMapper:
                         "registry_query", pid, "registry", ts, evidence,
                         {"target_id": target, "api": low_api},
                     ))
-            if low_api.startswith("regsetvalue") and ("\\currentversion\\run" in low_text or "\\currentversion\\runonce" in low_text):
-                target = _path(args.get("Buffer") or args.get("Data") or args.get("Value") or args.get("FullName"))
-                semantic["persistence"].append(EvidenceEvent("run_key_write", pid, target, ts, evidence))
+            run_write = ns.run_key_write(low_api, args)
+            if run_write:
+                semantic["persistence"].append(EvidenceEvent("run_key_write", pid, _path(run_write[1]), ts, evidence))
             if low_api.startswith("copyfile"):
                 destination = _path(args.get("NewFileName") or args.get("Destination")); semantic["persistence"].append(EvidenceEvent("payload_materialized", pid, destination, ts, evidence))
                 base = Path(destination.replace("\\", "/")).name
                 if ("google" in base or base in {"svchost.exe", "explorer.exe", "lsass.exe", "winlogon.exe", "services.exe"}) and any(token in destination for token in ("\\appdata\\", "\\temp\\", "\\users\\public\\")):
                     self.add("T1036.005", "candidate", "medium", "masquerading.legitimate_name", "A system/vendor-like executable was written to a user-writable path.", evidence)
-            process_creation = low_api in {"createprocessa", "createprocessw", "createprocessinternalw", "ntcreateuserprocess", "shellexecutea", "shellexecutew", "shellexecuteexa", "shellexecuteexw", "winexec"}
+            process_creation = low_api in ns.PROCESS_CREATE
+            executable_name = ns.executed_basename(args) if process_creation else ""
+            command_arguments = ns.command_args(args) if process_creation else []
             if process_creation:
-                launched = _path(args.get("ApplicationName") or args.get("ImagePath") or args.get("CommandLine")); semantic["persistence"].append(EvidenceEvent("payload_executed", pid, launched, ts, evidence))
-            if low_api.startswith("createservice") or ("\\system\\currentcontrolset\\services\\" in low_text and "imagepath" in low_text):
-                self.add("T1543.003", "observed", "high", "persistence.windows_service", "A Windows service creation or ImagePath write was observed.", evidence)
-            if ("schtasks" in low_text and "/create" in low_text) or "\\taskcache\\" in low_text:
-                self.add("T1053.005", "observed", "high", "persistence.scheduled_task", "A scheduled-task creation operation was observed.", evidence)
+                semantic["persistence"].append(EvidenceEvent("payload_executed", pid, ns.executed_image(args), ts, evidence))
+            if low_api.startswith("createservice") or ns.service_image_write(low_api, args):
+                self.add("T1543.003", "observed", "high", "persistence.windows_service", "A successful service creation or structured service ImagePath write was observed; service start is not implied.", evidence)
+            if (executable_name == "schtasks.exe" and "/create" in command_arguments) or (low_api in ns.REGISTRY_SET and "\\taskcache\\" in ns.registry_path(args)):
+                self.add("T1053.005", "candidate", "medium", "persistence.scheduled_task", "A task-creation command was launched or TaskCache was written; successful task registration is not proven.", evidence)
 
             # Indicator removal and masquerading.
-            if low_api.startswith(("deletefile", "ntdeletefile", "shfileoperation")):
-                deleted = _path(args.get("FileName") or args.get("ObjectName") or text); exact = deleted in module_paths or any(path and path in deleted for path in module_paths)
+            if low_api.startswith(("deletefile", "ntdeletefile")) or (low_api.startswith("shfileoperation") and _integer(_arg(args, "wFunc", "Function")) == 3):
+                deleted = _path(args.get("FileName") or args.get("ObjectName") or args.get("pFrom")); exact = bool(deleted and deleted in module_paths)
                 self.add("T1070.004", "observed" if exact else "candidate", "high" if exact else "medium", "indicator.file_deletion", "Deletion of an analyzed module was observed." if exact else "A file deletion was observed; cleanup intent is not independently proven.", evidence)
-            if low_api in {"cleareventlogw", "cleareventloga", "evtclearlog"} or ("wevtutil" in low_text and re.search(r"\b(cl|clear-log)\b", low_text)):
+            if low_api in {"cleareventlogw", "cleareventloga", "evtclearlog"} :
                 self.add("T1070.001", "observed", "high", "indicator.clear_event_log", "A Windows event-log clearing operation was observed.", evidence)
+            if executable_name == "wevtutil.exe" and len(command_arguments) >= 2 and command_arguments[0] in {"cl", "clear-log"}:
+                self.add("T1070.001", "candidate", "medium", "indicator.clear_event_log_command", "An event-log clearing command was launched; command completion is not proven.", evidence)
             if low_api in {"setfiletime", "ntsetinformationfile"} and any(token in low_text for token in ("creationtime", "lastwritetime", "filebasicinformation")):
                 self.add("T1070.006", "candidate", "medium", "indicator.file_time_change", "File timestamps changed; anti-forensic intent needs confirmation.", evidence)
 
@@ -539,45 +579,50 @@ class AttackMapper:
             interpreters = {"powershell.exe": "T1059.001", "pwsh.exe": "T1059.001", "cmd.exe": "T1059.003", "cscript.exe": "T1059.005", "wscript.exe": "T1059.005", "python.exe": "T1059.006", "pythonw.exe": "T1059.006", "node.exe": "T1059.007"}
             signed = {"mshta.exe": "T1218.005", "regsvr32.exe": "T1218.010", "rundll32.exe": "T1218.011"}
             for executable, technique in interpreters.items():
-                if executable in process_name or (process_creation and executable in low_text): self.add(technique, "observed", "high", "execution.command_interpreter", f"Execution through {executable} was observed.", evidence)
+                if executable == _basename(process_name) or executable == executable_name: self.add(technique, "observed", "high", "execution.command_interpreter", f"Execution through {executable} was observed.", evidence)
             for executable, technique in signed.items():
-                if executable in process_name or (process_creation and executable in low_text): self.add(technique, "observed", "high", "execution.signed_binary_proxy", f"Execution through {executable} was observed.", evidence)
-            if "wmic.exe" in process_name or (process_creation and "wmic.exe" in low_text) or low_api.startswith(("iwbem", "execmethod")):
-                self.add("T1047", "observed", "medium", "execution.wmi", "WMI execution activity was observed.", evidence)
+                if executable == _basename(process_name) or executable == executable_name: self.add(technique, "candidate", "medium", "execution.signed_binary_proxy", f"Execution through {executable} was observed.", evidence)
+            wmi_create = (executable_name == "wmic.exe" and any(command_arguments[i:i+3] == ["process", "call", "create"] for i in range(len(command_arguments)-2)))
+            wmi_method = ("execmethod" in low_api and str(_arg(args, "Method", "MethodName") or "").lower() == "create" and str(_arg(args, "Class", "ClassName", "ObjectPath") or "").lower() == "win32_process")
+            if wmi_create or wmi_method:
+                self.add("T1047", "candidate", "medium", "execution.wmi", "A Win32_Process.Create request was observed; method return or child execution is required for completion.", evidence)
 
-            # Process-memory adapter creates target-bound events.
-            if low_api in {"ntopenprocess", "openprocess"}:
-                handle = str(args.get("ProcessHandle") or "").lower(); target_pid = str(args.get("ProcessIdentifier") or args.get("ProcessId") or "")
-                target_name = str(args.get("ProcessName") or "").lower(); target = handle or target_pid or "unknown"
-                semantic["injection"].append(EvidenceEvent("process_open", pid, target, ts, evidence))
-                if handle and ("lsass" in target_name or "lsass" in low_text): handle_targets[(pid, handle)] = "lsass"
-                if "lsass" in target_name or "lsass" in low_text: semantic["lsass"].append(EvidenceEvent("lsass_access", pid, "lsass", ts, evidence))
-            handle = str(args.get("ProcessHandle") or args.get("hProcess") or "").lower(); target_pid = str(args.get("ProcessId") or args.get("ProcessIdentifier") or "")
-            remote = (handle and handle not in {"0xffffffff", "0xffffffffffffffff", "-1", "current"}) or (target_pid and target_pid != pid)
-            target = handle or target_pid or "unknown"
-            if low_api in {"ntwritevirtualmemory", "writeprocessmemory", "ntmapviewofsection", "mapviewoffileex"} and remote:
-                semantic["injection"].append(EvidenceEvent("remote_write", pid, target, ts, evidence))
-            if low_api in {"createremotethread", "createremotethreadex", "ntcreatethreadex", "rtlcreateuserthread", "setthreadcontext"} and remote:
-                semantic["injection"].append(EvidenceEvent("remote_execute", pid, target, ts, evidence, {"apc": False}))
-            if low_api in {"queueuserapc", "ntqueueapcthread", "ntqueueapcthreadex"} and remote:
-                semantic["injection"].append(EvidenceEvent("remote_execute", pid, target, ts, evidence, {"apc": True}))
-            if low_api in {"ntreadvirtualmemory", "readprocessmemory", "minidumpwritedump"} and ("lsass" in low_text or handle_targets.get((pid, handle)) == "lsass"):
-                semantic["lsass"].append(EvidenceEvent("lsass_read_or_dump", pid, "lsass", ts, evidence))
+            # Handle lifetime, explicit target PID and successful operations are
+            # mandatory. SetThreadContext and APC queueing do not prove execution.
+            target_info = targets.observe(pid, low_api, args, call)
+            if target_info:
+                target = target_info["key"]
+                if low_api in {"ntopenprocess", "openprocess"}:
+                    semantic["injection"].append(EvidenceEvent("process_open", pid, target, ts, evidence))
+                    if target_info["name"] == "lsass.exe":
+                        semantic["lsass"].append(EvidenceEvent("lsass_access", pid, target, ts, evidence))
+                if low_api in ns.REMOTE_WRITE:
+                    semantic["injection"].append(EvidenceEvent("remote_write", pid, target, ts, evidence))
+                if low_api in ns.REMOTE_START:
+                    semantic["injection"].append(EvidenceEvent("remote_execute", pid, target, ts, evidence))
+                if low_api in {"queueuserapc", "ntqueueapcthread", "ntqueueapcthreadex"}:
+                    self.add("T1055.004", "candidate", "medium", "sm.injection.apc", "An APC was queued to an identified remote target; dispatch and payload execution are unproven.", evidence)
+                if low_api in {"ntreadvirtualmemory", "readprocessmemory", "minidumpwritedump"} and target_info["name"] == "lsass.exe":
+                    semantic["lsass"].append(EvidenceEvent("lsass_read_or_dump", pid, target, ts, evidence))
 
             # Discovery and collection primitives retained from P3.2.3.14, now
             # operating exclusively on the canonical clean view when available.
-            process_query = low_api == "ntquerysysteminformation" and ("systemprocessinformation" in low_text or re.search(r"(?:class|informationclass)[^0-9]*5\b", low_text))
-            if low_api in {"createtoolhelp32snapshot", "process32firstw", "process32first", "process32nextw", "process32next"} or process_query: self.add("T1057", "observed", "high", "discovery.processes", "Process enumeration was observed.", evidence)
+            info_class = _arg(args, "SystemInformationClass", "InformationClass", "Class")
+            process_query = low_api == "ntquerysysteminformation" and (_integer(info_class) == 5 or str(info_class).lower() == "systemprocessinformation")
+            snapshot_flags = _arg(args, "Flags", "dwFlags")
+            process_snapshot = low_api == "createtoolhelp32snapshot" and ((_integer(snapshot_flags) or 0) & 2 or "TH32CS_SNAPPROCESS" in str(snapshot_flags))
+            if low_api in {"process32firstw", "process32first", "process32nextw", "process32next"} or process_query or process_snapshot:
+                self.add("T1057", "observed", "high", "discovery.processes", "Process enumeration was observed.", evidence)
             if low_api in {"getsysteminfo", "getnativesysteminfo", "getcomputernamew", "getcomputernamea", "rtlgetversion", "getversionexw", "getversionexa"}: self.add("T1082", "candidate", "medium", "discovery.system_information", "A clean-view system-information query was observed; routine use remains possible.", evidence)
             if low_api in {"getusernamew", "getusernamea", "getusernameexw", "getusernameexa"}: self.add("T1033", "observed", "medium", "discovery.user", "User-name discovery was observed.", evidence)
-            if low_api in {"netuserenum", "netusergetinfo"}: self.add("T1087.001", "observed", "high", "discovery.local_accounts", "Local account enumeration was observed.", evidence)
-            if low_api in {"netshareenum", "wnetenumresourcew", "wnetenumresourcea"}: self.add("T1135", "observed", "high", "discovery.network_shares", "Network-share enumeration was observed.", evidence)
-            if low_api in {"netlocalgroupenum", "netlocalgroupgetmembers"}: self.add("T1069.001", "observed", "high", "discovery.local_groups", "Local-group enumeration was observed.", evidence)
-            if low_api in {"netgroupenum", "netgroupgetusers"}: self.add("T1069.002", "observed", "high", "discovery.domain_groups", "Domain-group enumeration was observed.", evidence)
-            if low_api in {"getadaptersaddresses", "getadaptersinfo", "getnetworkparams", "wsaioctl"} or "ipconfig" in low_text: self.add("T1016", "observed", "medium", "discovery.network_configuration", "Network configuration discovery was observed.", evidence)
+            if low_api in {"netuserenum", "netusergetinfo"} and not _arg(args, "ServerName", "Server", "servername"): self.add("T1087.001", "observed", "high", "discovery.local_accounts", "Local account enumeration was observed.", evidence)
+            if low_api in {"netshareenum", "wnetenumresourcew", "wnetenumresourcea"}: self.add("T1135", "observed" if low_api == "netshareenum" else "candidate", "medium", "discovery.network_shares", "Network-share enumeration was observed.", evidence)
+            if low_api in {"netlocalgroupenum", "netlocalgroupgetmembers"} and not _arg(args, "ServerName", "Server"): self.add("T1069.001", "observed", "high", "discovery.local_groups", "Local-group enumeration was observed.", evidence)
+            if low_api in {"netgroupenum", "netgroupgetusers"}: self.add("T1069.002", "candidate", "medium", "discovery.domain_groups", "Domain-group enumeration was observed.", evidence)
+            if low_api in {"getadaptersaddresses", "getadaptersinfo", "getnetworkparams"} or (low_api == "wsaioctl" and _integer(_arg(args, "IoControlCode", "dwIoControlCode")) == 0x48000016) or executable_name == "ipconfig.exe": self.add("T1016", "observed", "medium", "discovery.network_configuration", "Network configuration discovery was observed.", evidence)
             if low_api.startswith(("findfirstfile", "findnextfile")): self.add("T1083", "candidate", "medium", "discovery.files", "File/directory enumeration was observed; routine access remains possible.", evidence)
-            if any(token in low_text for token in ("msmpeng", "windefend", "securityhealth", "avast", "kaspersky", "crowdstrike", "sentinelone")): self.add("T1518.001", "candidate", "medium", "discovery.security_software", "Security-product identifiers were queried.", evidence)
-            if low_api in {"getclipboarddata", "openclipboard"}: self.add("T1115", "observed", "medium", "collection.clipboard", "Clipboard access was observed.", evidence)
+            if (low_api in registry_query_apis or low_api in {"enumservicesstatusa", "enumservicesstatusw", "openscmanagerw", "openservicew", "openservicea", "process32nextw"}) and any(token in low_text for token in ("msmpeng", "windefend", "securityhealth", "avast", "kaspersky", "crowdstrike", "sentinelone")): self.add("T1518.001", "candidate", "medium", "discovery.security_software", "Security-product identifiers were queried.", evidence)
+            if low_api in {"getclipboarddata", "openclipboard"}: self.add("T1115", "observed" if low_api == "getclipboarddata" else "candidate", "medium", "collection.clipboard", "Clipboard data was retrieved." if low_api == "getclipboarddata" else "Clipboard was opened; data retrieval is unproven.", evidence)
 
             # Keylogging is a structured state machine. HookIdentifier 2 is
             # WH_KEYBOARD and 13 is WH_KEYBOARD_LL; ThreadId 0 makes the hook
@@ -600,8 +645,10 @@ class AttackMapper:
 
             # Screen capture can be proven either by an explicit capture API or
             # by repeated image materialization with an image magic signature.
-            if low_api in {"bitblt", "stretchblt", "printwindow"}:
+            if low_api == "printwindow":
                 semantic["screen_capture"].append(EvidenceEvent("screen_api", pid, "screen", ts, evidence, {"api": low_api}))
+            if low_api in {"bitblt", "stretchblt"}:
+                self.add("T1113", "candidate", "medium", "collection.screen_blit", "A bitmap transfer succeeded; screen-source device context is unproven.", evidence)
             image_kind = _image_format(file_path)
             if low_api in {"ntcreatefile", "createfilea", "createfilew"} and image_kind:
                 access = _integer(_arg(args, "DesiredAccess", "dwDesiredAccess"))
@@ -641,12 +688,12 @@ class AttackMapper:
             if low_api in {"connect", "wsaconnect"}:
                 port = _integer(_arg(args, "port", "RemotePort", "sin_port"))
                 socket = str(_arg(args, "socket", "s", "Socket") or "unknown")
-                if port in {25, 465, 587}:
+                if socket != "unknown" and port in {25, 465, 587}:
                     semantic["smtp"].append(EvidenceEvent("smtp_connect_success", pid, socket, ts, evidence, {"port": port}))
             if low_api in {"send", "wsasend"}:
                 command = _smtp_command(_arg(args, "buffer", "Buffer", "Data"))
                 socket = str(_arg(args, "socket", "s", "Socket") or "unknown")
-                if command:
+                if socket != "unknown" and command:
                     semantic["smtp"].append(EvidenceEvent("smtp_command_success", pid, socket, ts, evidence, {"command": command}))
             if low_api in {"waveinopen", "mcisendstringw", "mcisendstringa"}: self.add("T1123", "candidate", "medium", "collection.audio", "Audio-capture primitives were observed.", evidence)
             debugger_probe = low_api in {"isdebuggerpresent", "checkremotedebuggerpresent"}
@@ -661,16 +708,21 @@ class AttackMapper:
             check_types = {"getsystemmetrics": "display", "globalmemorystatusex": "memory", "getdiskfreespaceexw": "disk", "cpuid": "cpu"}
             if low_api in check_types: semantic["environment"].append(EvidenceEvent("system_check", pid, "environment", ts, evidence, {"check_type": check_types[low_api]}))
             if low_api in {"sleep", "sleepex", "ntdelayexecution"}:
-                numbers = [int(value) for value in re.findall(r"\d+", low_text)]
-                if numbers and max(numbers) >= 30000: self.add("T1497.003", "candidate", "medium", "evasion.long_delay", "A long execution delay was requested.", evidence)
-            if any(token in low_text for token in ("windefend", "msmpeng", "set-mppreference", "disableantispyware")) and any(token in low_api + " " + low_text for token in ("terminate", "delete", "disable", "stop", "regset")):
+                delay = _integer(_arg(args, "Milliseconds", "dwMilliseconds", "Delay"))
+                if low_api == "ntdelayexecution":
+                    interval = _integer(_arg(args, "DelayInterval", "Interval"))
+                    delay = -interval / 10000 if interval is not None and interval < 0 else None
+                if delay is not None and delay >= 30000:
+                    self.add("T1497.003", "candidate", "medium", "evasion.long_delay", "A long execution delay was requested; a delay alone does not prove evasion.", evidence)
+
+            if (low_api in ns.REGISTRY_SET or process_creation or low_api in {"terminateprocess", "ntterminateprocess", "controlservice", "deleteservice"}) and any(token in low_text for token in ("windefend", "msmpeng", "set-mppreference", "disableantispyware")) and any(token in low_api + " " + low_text for token in ("terminate", "delete", "disable", "stop", "regset")):
                 self.add("T1562.001", "candidate", "medium", "evasion.impair_defenses", "An operation targeting security controls was observed.", evidence)
 
         # Failed socket calls are excluded from the successful behavior view,
         # but remain useful as explicit protocol attempts. Preserve them under
         # a separate status so they cannot be mistaken for completed C2.
         for process, call in self._all_calls():
-            if _call_completed(call):
+            if _call_completed(call) or call.get("status") is not False:
                 continue
             api = str(call.get("api") or ""); low_api = api.lower(); args = _args(call)
             pid = str(process.get("process_id") or ""); ts = parse_timestamp(call.get("timestamp"))
@@ -678,11 +730,11 @@ class AttackMapper:
             socket = str(_arg(args, "socket", "s", "Socket") or "unknown")
             if low_api in {"connect", "wsaconnect"}:
                 port = _integer(_arg(args, "port", "RemotePort", "sin_port"))
-                if port in {25, 465, 587}:
+                if socket != "unknown" and port in {25, 465, 587}:
                     semantic["smtp"].append(EvidenceEvent("smtp_connect_attempt", pid, socket, ts, evidence, {"port": port}))
             elif low_api in {"send", "wsasend"}:
                 command = _smtp_command(_arg(args, "buffer", "Buffer", "Data"))
-                if command:
+                if socket != "unknown" and command:
                     semantic["smtp"].append(EvidenceEvent("smtp_command_attempt", pid, socket, ts, evidence, {"command": command}))
 
         self._evaluate_states(semantic)
@@ -698,7 +750,6 @@ class AttackMapper:
         if injection.get("complete"):
             self.state_evaluations.append(state); event = injection["matched"][-1]
             self.add("T1055", "observed", "high", "sm.injection.write_execute", "Remote write and execution states matched the same target.", event.evidence, state=state)
-            if event.attributes.get("apc"): self.add("T1055.004", "observed", "high", "sm.injection.apc", "Remote write was followed by APC execution on the same target.", event.evidence, state=state)
         elif injection.get("matched") or semantic["injection"]:
             self.state_evaluations.append(state); event = (injection.get("matched") or semantic["injection"])[0]
             self.add("T1055", "insufficient_evidence", "medium", "sm.injection.incomplete", "Injection precursor exists, but same-target write and execution states are incomplete.", event.evidence, state=state)
@@ -712,6 +763,7 @@ class AttackMapper:
 
         environment = evaluate_distinct("sm.evasion.environment", semantic["environment"], 2, 30)
         state = self._state("sm.evasion.environment", environment, ["two distinct system characteristics", "same PID", "within 30 seconds"])
+        state["scoreable"] = False  # Correlated queries do not prove an evasion branch.
         if environment.get("complete"):
             self.state_evaluations.append(state); self.add("T1497.001", "candidate", "medium", "sm.evasion.environment", "Multiple environment checks correlated; an evasion-dependent branch is not proven.", environment["matched"][-1].evidence, state=state)
         elif environment.get("matched"):
@@ -784,7 +836,7 @@ class AttackMapper:
         )
         if capture_api.get("complete"):
             state = self._state("sm.collection.screen_capture_api", capture_api, [
-                "successful BitBlt/StretchBlt/PrintWindow", "clean analyzed-process lineage",
+                "successful PrintWindow", "clean analyzed-process lineage",
             ])
             self.state_evaluations.append(state)
             self.add(
@@ -802,9 +854,9 @@ class AttackMapper:
         content = next((event for event in image_content if str(event.pid) == str((repeated_images.get("key") or {}).get("pid"))), None)
         artifact_complete = bool(repeated_images.get("complete") and content)
         artifact_result = {
-            "complete": artifact_complete,
+            "complete": False,
             "matched": list(repeated_images.get("matched") or []) + ([content] if content else []),
-            "missing": ([] if artifact_complete else list(repeated_images.get("missing") or []) + ([] if content else ["image magic signature"])),
+            "missing": ["screen capture source"] + ([] if artifact_complete else list(repeated_images.get("missing") or []) + ([] if content else ["image magic signature"])),
             "optional": [], "key": repeated_images.get("key"),
             "state_trace": (["image_artifact"] * len(repeated_images.get("matched") or [])) + (["image_content"] if content else []),
             "optional_states": [],
@@ -814,11 +866,12 @@ class AttackMapper:
                 "same source PID", "two distinct image paths within 300 seconds",
                 "successful image write with JPEG/PNG/BMP magic", "not sandbox-generated screenshots",
             ])
+            state["scoreable"] = False
             self.state_evaluations.append(state)
             if artifact_complete:
                 self.add(
-                    "T1113", "observed", "high", "sm.collection.screen_capture_artifacts",
-                    "Repeated image materialization plus an image magic signature proved automated screen-image collection.",
+                    "T1113", "candidate", "medium", "sm.collection.screen_capture_artifacts",
+                    "Repeated image creation is observed, but image content does not prove its origin was a screen capture.",
                     content.evidence, state=state,
                 )
             else:
@@ -888,12 +941,12 @@ class AttackMapper:
             last = (steps[-1].get("evidence") or {}) if steps and isinstance(steps[-1], dict) else (chain.get("open_process") or chain.get("create") or {})
             evidence = self._evidence("behavior_chain", chain.get("interpretation") or kind, last, last, {"chain_type": kind})
             technique = chain.get("mitre_candidate")
-            if technique:
-                self.add(str(technique), "observed" if confidence == "high" else "candidate", confidence, f"chain.{kind}", chain.get("interpretation") or "Validated behavior chain matched.", evidence)
+            if technique and normalize_technique_id(technique)[0] in self.mappings:
+                self.add(str(technique), "candidate", "medium", f"chain.{kind}", chain.get("interpretation") or "Validated behavior chain matched.", evidence)
             if kind == "injection_precursor" and not chain.get("confirmed_injection_sequence"):
                 self.add("T1055", "insufficient_evidence", "medium", "chain.injection_precursor", chain.get("interpretation") or "Injection prerequisites were incomplete.", evidence)
             if kind in {"process_hollowing", "injection_process_hollowing"} and chain.get("confirmed_injection_sequence"):
-                self.add("T1055.012", "observed", "high", "chain.process_hollowing", "A confirmed process-hollowing chain was observed.", evidence)
+                self.add("T1055.012", "candidate", "medium", "chain.process_hollowing", "An imported hollowing chain is a reference; current clean-call state validation is required.", evidence)
 
     def _eligible_network(self):
         rows = []
@@ -906,6 +959,8 @@ class AttackMapper:
         return rows
 
     def _map_signatures(self) -> None:
+        from CAPEsolo.capelib.unpacking_evidence import apply_unpacking_policy, SIGNATURES
+        unpacking = apply_unpacking_policy(self.results, self.analysis_path)
         overrides = {
             "unpacker": ["T1027.002", "T1140"], "compression": ["T1027.002", "T1140"],
             "decryption": ["T1027", "T1140"], "network_payload_download": ["T1105"],
@@ -941,8 +996,12 @@ class AttackMapper:
                 if not technique: continue
                 if low.startswith(NETWORK_PREFIXES) and not self._eligible_network():
                     self.add(technique, "insufficient_evidence", "medium", "signature.network_unattributed", "Network content matched, but no eligible flow was attributed to analyzed lineage.", evidence, original); continue
-                if technique == "T1140" and low in {"unpacker", "compression", "decryption"} and not payload_count:
-                    self.add(technique, "candidate", "medium", f"signature.{name}", "Unpacking/deobfuscation behavior matched, but no extracted artifact was preserved to corroborate completion.", evidence, original)
+                if low in SIGNATURES:
+                    evidence = self._evidence("signature", signature.get("description") or name,
+                        details={"signature": name, "eligible_payload_count": str(unpacking["eligible_payloads"]),
+                                 "artifact_decisions": unpacking["artifacts"], "policy": unpacking["interpretation"]})
+                    self.add(technique, unpacking["status"], unpacking["confidence"], f"signature.{name}",
+                             unpacking["interpretation"], evidence, original)
                     continue
                 observed = "injection" in low or (signature.get("confidence") or 0) >= 90
                 self.add(technique, "observed" if observed else "candidate", "high" if observed else "medium", f"signature.{name}", "A matched signature declared this ATT&CK ID; signature logic remains independently testable.", evidence, original)
@@ -1097,8 +1156,8 @@ class AttackMapper:
                 row = tactic_rows.setdefault(tactic, {"id": tactic, "name": TACTIC_LABELS.get(tactic, tactic.replace("-", " ").title()), "observed": 0, "attempted": 0, "candidate": 0, "techniques": []})
                 row[mapping["status"]] += 1; row["techniques"].append(mapping["id"])
         tactics = sorted(tactic_rows.values(), key=lambda row: row["name"])
-        return {
-            "schema": SCHEMA, "attack_version": self.catalog_meta.get("attack_version") or ATTACK_VERSION,
+        report = {
+            "schema": SCHEMA, "processor_revision": PROCESSOR_REVISION, "attack_version": self.catalog_meta.get("attack_version") or ATTACK_VERSION,
             "domain": ATTACK_DOMAIN, "platform": ACTIVE_PLATFORM, "processor_version": PRODUCT_VERSION, "catalog": self.catalog_meta,
             "summary": {
                 "techniques": len(mappings),
@@ -1115,7 +1174,7 @@ class AttackMapper:
             "state_machine_evaluations": self.state_evaluations, "coverage": coverage, "coverage_warnings": self.warnings,
             "sigma": self.sigma_report,
             "semantics": {
-                "observed": "Successful semantic evidence or a validated state machine supports the technique.",
+                "observed": "The producer reports observed behavior; this does not independently prove malicious intent. Review per-rule evidence and source-specific confidence.",
                 "attempted": "A direct technique action was attempted but failed; completion is not claimed.",
                 "candidate": "Evidence is compatible but has a benign alternative or quality limitation.",
                 "insufficient_evidence": "A precursor was seen but required states were missing.",
@@ -1123,6 +1182,10 @@ class AttackMapper:
                 "legacy_status_aliases": {"not_supported": "insufficient_evidence"},
             },
         }
+
+        from CAPEsolo.capelib.car_reference import annotate_report
+        annotate_report(report)
+        return report
 
 
 def map_mitre_attack(results: dict, analysis_path: Optional[Any] = None, write_artifact: bool = True) -> dict:

@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import ntpath
 import sys
 from collections import Counter
 from datetime import datetime
@@ -31,6 +32,8 @@ for search_path in (HERE, PROJECT_ROOT):
 
 from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION, product_version_for_runtime
 from p3_run_scope import load_runtime_for_analysis
+from CAPEsolo.capelib import native_semantics as ns
+from CAPEsolo.capelib.attack_state import parse_timestamp
 
 RUN_KEY_MARKERS = (
     "\\software\\microsoft\\windows\\currentversion\\run\\",
@@ -91,6 +94,9 @@ def _call(record: dict) -> dict:
 
 
 def _args(record: dict) -> dict[str, Any]:
+    raw = _call(record).get("arguments") or []
+    if isinstance(raw, dict):
+        return raw
     out: dict[str, Any] = {}
     for arg in _call(record).get("arguments") or []:
         if not isinstance(arg, dict):
@@ -110,7 +116,7 @@ def _norm_path(value: Any) -> str:
     if not text:
         return ""
     # Path normalization is for correlation only; preserve original strings in evidence.
-    return os.path.normcase(os.path.normpath(text))
+    return ns.path(text)
 
 
 def _record_ref(record: dict) -> dict:
@@ -178,16 +184,9 @@ def _process_target(record: dict) -> tuple[str, int | None]:
 
 
 def _run_key_write(record: dict) -> tuple[str, str] | None:
-    api = str(record.get("api") or "").lower()
-    if api not in {"regsetvalueexw", "regsetvalueexa", "ntsetvaluekey"}:
+    if not ns.success(_call(record)):
         return None
-    a = _args(record)
-    full = str(_find_arg(a, "FullName", "RegistryPath", "KeyName") or "")
-    low = full.lower()
-    if not any(marker in low for marker in RUN_KEY_MARKERS):
-        return None
-    value = _find_arg(a, "Buffer", "Data", "ValueData")
-    return full, str(value or "")
+    return ns.run_key_write(str(record.get("api") or _call(record).get("api") or ""), _args(record))
 
 
 def _desired_remote_access(value: Any) -> bool:
@@ -212,12 +211,16 @@ def extract_behavior_chains_from_records(
     by_pid: dict[int, list[dict]] = {}
 
     for record in records:
+        if record.get("filter_from_clean_view") or record.get("provenance") in {"unknown", "framework_frida"} or not ns.success(_call(record)):
+            continue
         try:
             pid = int(record.get("pid") or 0)
         except Exception:
             pid = 0
         by_pid.setdefault(pid, []).append(record)
         api_l = str(record.get("api") or "").lower()
+        if not pid:
+            continue
         if api_l in FILE_MATERIALIZE_APIS:
             target = _target_from_file_call(record)
             if target:
@@ -234,8 +237,12 @@ def extract_behavior_chains_from_records(
     for key, value, reg_record in run_writes:
         target = _norm_path(value)
         registry_script = str(value).lstrip().startswith("#@~^") or ("javascript:" in str(value).lower() and "regread(" in str(value).lower())
-        file_match = next((r for path, r in reversed(file_events) if target and path == target), None)
-        proc_match = next((r for path, _, r in reversed(proc_events) if target and path == target), None)
+        def related(r):
+            first = parse_timestamp(r.get("timestamp") or _call(r).get("timestamp"))
+            last = parse_timestamp(reg_record.get("timestamp") or _call(reg_record).get("timestamp"))
+            return str(r.get("pid")) == str(reg_record.get("pid")) and first is not None and last is not None and 0 <= last - first <= 600
+        file_match = next((r for path, r in reversed(file_events) if target and path == target and related(r)), None)
+        proc_match = next((r for path, _, r in reversed(proc_events) if target and path == target and related(r)), None)
         steps = []
         if file_match:
             steps.append({"kind": "file_materialized", "path": value, "evidence": _record_ref(file_match)})
@@ -280,21 +287,34 @@ def extract_behavior_chains_from_records(
                 target_pid = int(str(target_pid_v), 0)
             except Exception:
                 target_pid = None
-            if target_pid is not None and target_pid == source_pid:
+            if target_pid is None or target_pid == source_pid:
                 continue
             target_name = str(_find_arg(a, "ProcessName", "TargetProcessName") or "")
             target_handle = str(_find_arg(a, "ProcessHandle", "Handle") or "").lower()
             remote_memory = []
             remote_exec = []
-            for follow in pid_records[idx + 1: idx + 128]:
+            opened = parse_timestamp(record.get("timestamp") or _call(record).get("timestamp"))
+            written = None
+            for follow in pid_records[idx + 1:]:
                 fa = _args(follow)
-                handle = str(_find_arg(fa, "ProcessHandle", "TargetProcessHandle") or "").lower()
+                handle = str(_find_arg(fa, "ProcessHandle", "TargetProcessHandle", "hProcess") or "").lower()
                 api_l = str(follow.get("api") or "").lower()
-                if target_handle and handle and handle != target_handle:
+                if api_l in {"closehandle", "ntclose"} and ns.integer(_find_arg(fa, "Handle", "hObject")) == ns.integer(target_handle):
+                    break
+                if api_l in {"openprocess", "ntopenprocess"} and ns.integer(handle) == ns.integer(target_handle):
+                    break
+                t = parse_timestamp(follow.get("timestamp") or _call(follow).get("timestamp"))
+                if opened is None or t is None or t < opened:
                     continue
-                if api_l in REMOTE_MEMORY_APIS and handle and handle not in {"0xffffffff", "-1"}:
-                    remote_memory.append(_record_ref(follow))
-                if api_l in REMOTE_EXEC_APIS:
+                if t - opened > 60:
+                    break
+                if not target_handle or not handle or ns.integer(handle) != ns.integer(target_handle):
+                    continue
+                if ns.integer(handle) in {None, 0, -1, 0xffffffff, 0xffffffffffffffff}:
+                    continue
+                if api_l in ns.REMOTE_WRITE:
+                    remote_memory.append(_record_ref(follow)); written = t
+                if api_l in ns.REMOTE_START and written is not None and t >= written:
                     remote_exec.append(_record_ref(follow))
             confirmed = bool(remote_memory and remote_exec)
             injection_precursors.append({

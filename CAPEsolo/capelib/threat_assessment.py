@@ -13,7 +13,7 @@ from typing import Any
 from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION
 
 SCHEMA = "capesolo-threat-assessment/1.0"
-SCORE_VERSION = "p32317-evidence-v3"
+SCORE_VERSION = "p32318-car1-evidence-v5"
 THRESHOLDS = {
     "benign": {"minimum": 0, "maximum": 19},
     "suspicious": {"minimum": 20, "maximum": 59},
@@ -64,6 +64,10 @@ def _attack_component(attack: dict) -> dict:
     for mapping in attack.get("mappings") or []:
         if not isinstance(mapping, dict) or mapping.get("status") not in STATUS_FACTORS:
             continue
+        rules = set(mapping.get("rule_ids") or [])
+        if mapping.get("status") == "candidate" and rules and all(r.lower() in {
+            "signature.unpacker", "signature.compression", "signature.decryption"} for r in rules):
+            continue
         # Sigma-only mappings deliberately remain review candidates and must
         # not inflate the maliciousness score.  When a native detector also
         # supports the same mapping, normal scoring still applies.
@@ -109,6 +113,11 @@ def _signature_component(results: dict) -> dict:
             continue
         name = str(signature.get("name") or signature.get("description") or "unnamed")
         key = name.lower()
+        if key in {"unpacker", "compression", "decryption"}:
+            from CAPEsolo.capelib.unpacking_evidence import evaluate_unpacking
+            evidence = results.get("unpacking_evidence") or evaluate_unpacking(results)
+            if not evidence.get("scoreable"):
+                continue
         # Multi-engine reputation is scored separately as an independent,
         # high-strength source rather than as an ordinary behavior signature.
         if key.startswith("antivirus_"):

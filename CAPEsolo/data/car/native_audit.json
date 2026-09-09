@@ -1,0 +1,1034 @@
+{
+  "schema": "p3-car-native-audit/1",
+  "revision": "p32318-car1",
+  "car_commit": "1b922fe1527d956e222a99473472e594f10f610b",
+  "native_literal_rule_count": 51,
+  "native_literal_rules": [
+    "chain.injection_precursor",
+    "chain.process_hollowing",
+    "collection.audio",
+    "collection.clipboard",
+    "collection.screen_blit",
+    "discovery.domain_groups",
+    "discovery.files",
+    "discovery.local_accounts",
+    "discovery.local_groups",
+    "discovery.network_configuration",
+    "discovery.network_shares",
+    "discovery.processes",
+    "discovery.security_software",
+    "discovery.system_information",
+    "discovery.user",
+    "evasion.impair_defenses",
+    "evasion.long_delay",
+    "execution.command_interpreter",
+    "execution.signed_binary_proxy",
+    "execution.wmi",
+    "indicator.clear_event_log",
+    "indicator.clear_event_log_command",
+    "indicator.file_deletion",
+    "indicator.file_time_change",
+    "masquerading.double_extension",
+    "masquerading.legitimate_name",
+    "masquerading.pe_identity_mismatch",
+    "masquerading.pe_resource_claim",
+    "persistence.scheduled_task",
+    "persistence.windows_service",
+    "registry.modify",
+    "registry.open_or_create",
+    "sm.collection.keylogging_hook",
+    "sm.collection.keylogging_precursor",
+    "sm.collection.screen_capture_api",
+    "sm.collection.screen_capture_artifacts",
+    "sm.collection.screen_capture_artifacts_incomplete",
+    "sm.credential.lsass",
+    "sm.credential.lsass_incomplete",
+    "sm.discovery.registry_query",
+    "sm.discovery.registry_query_single",
+    "sm.discovery.system_location",
+    "sm.evasion.debugger_probe",
+    "sm.evasion.environment",
+    "sm.evasion.environment_incomplete",
+    "sm.injection.apc",
+    "sm.injection.incomplete",
+    "sm.injection.write_execute",
+    "sm.network.smtp_attempt",
+    "sm.network.smtp_success",
+    "sm.persistence.run_key"
+  ],
+  "rules": [
+    {
+      "rule_id": "chain.*",
+      "car_ids": [],
+      "relation": "not_native_detector",
+      "review_status": "reviewed",
+      "logic_review": "External cached chain cannot promote observed; candidate annotations only where current native mapping exists.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 0,
+        "synthetic_negative": 0,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "chain.injection_precursor",
+      "car_ids": [
+        "CAR-2013-10-002"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "Presentation only; current native API state machine is authoritative.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "chain.process_hollowing",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Imported hollowing chain stays candidate pending current-snapshot state validation.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "collection.audio",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Audio primitives remain candidates; recording completion unavailable.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "collection.clipboard",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "OpenClipboard candidate; successful GetClipboardData supports retrieval, not exfiltration.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 2,
+        "synthetic_negative": 2,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "collection.screen_blit",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Bitmap transfer may be off-screen: candidate without source-DC proof.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "discovery.domain_groups",
+      "car_ids": [
+        "CAR-2016-03-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "NetGroup APIs identify groups but domain provenance may be absent: candidate.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "discovery.files",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Enumeration APIs remain candidates because normal software enumerates files.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 1,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "discovery.local_accounts",
+      "car_ids": [
+        "CAR-2016-03-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "NetUser APIs; server/domain argument must be checked to distinguish local/remote accounts.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 2,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "discovery.local_groups",
+      "car_ids": [
+        "CAR-2020-11-006",
+        "CAR-2016-03-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "NetLocalGroup APIs. Domain controller/remote targets are not local-account evidence.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "discovery.network_configuration",
+      "car_ids": [
+        "CAR-2016-03-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "Adapter APIs, SIO_ADDRESS_LIST_QUERY, or exact ipconfig executable. General WSAIoctl and strings excluded.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 3,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "discovery.network_shares",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "NetShareEnum supported; WNet resource enumeration alone is candidate because resources need not be shares.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "discovery.processes",
+      "car_ids": [
+        "CAR-2016-03-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "Process snapshot requires TH32CS_SNAPPROCESS; system query requires class 5. CAR command execution is a different sensor.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 2,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "discovery.security_software",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Constrained query API context; product identifiers alone never observed.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 2,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "discovery.system_information",
+      "car_ids": [
+        "CAR-2016-03-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "Generic system API query is candidate, not malicious intent.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 1,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "discovery.user",
+      "car_ids": [
+        "CAR-2016-03-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "Successful username API; CAR whoami is process telemetry.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 1,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "evasion.impair_defenses",
+      "car_ids": [
+        "CAR-2021-01-007",
+        "CAR-2022-03-001",
+        "CAR-2016-04-003"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "Constrain to registry writes, control operations or process launch; candidate. Legacy ATT&CK ID normalized by pinned catalog.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 2,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "evasion.long_delay",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Structured Sleep milliseconds or negative NtDelayExecution 100ns interval; candidate, no evasion-dependent branch claimed.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 2,
+        "synthetic_negative": 4,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "execution.command_interpreter",
+      "car_ids": [
+        "CAR-2014-04-003",
+        "CAR-2013-02-003"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "P3 reports interpreter execution; CAR PowerShell additionally requires non-explorer parent. No equivalence with all interpreters is claimed.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 9,
+        "synthetic_negative": 5,
+        "unmodified_recorded_positive": 1,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "execution.signed_binary_proxy",
+      "car_ids": [
+        "CAR-2014-03-006",
+        "CAR-2019-04-002",
+        "CAR-2019-04-003"
+      ],
+      "relation": "adapted",
+      "review_status": "reviewed",
+      "logic_review": "Exact host name, candidate only. Benign rundll32 desk.cpl is a deliberate control; host execution does not prove proxy abuse.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "execution.wmi",
+      "car_ids": [
+        "CAR-2016-03-002",
+        "CAR-2014-12-001"
+      ],
+      "relation": "adapted",
+      "review_status": "reviewed",
+      "logic_review": "Structured Win32_Process.Create or exact WMIC process call create, candidate unless method result independently proves execution.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 2,
+        "synthetic_negative": 2,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "indicator.clear_event_log",
+      "car_ids": [
+        "CAR-2016-04-002",
+        "CAR-2021-01-003"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "Successful clear-log API proves an operation; CAR command telemetry is a different sensor.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "indicator.clear_event_log_command",
+      "car_ids": [
+        "CAR-2021-01-003"
+      ],
+      "relation": "adapted",
+      "review_status": "reviewed",
+      "logic_review": "Exact wevtutil plus clear subcommand and log target. Process launch alone remains candidate.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 2,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "indicator.file_deletion",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Only DeleteFile/NtDeleteFile or SHFileOperation FO_DELETE. Exact analyzed module path for observed; backup suffix and copy operation excluded.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 3,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "indicator.file_time_change",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Timestamp mutation remains candidate; anti-forensic intent is unproven.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "masquerading.double_extension",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Filename hypothesis only; analyst-controlled naming possible.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "masquerading.legitimate_name",
+      "car_ids": [
+        "CAR-2013-05-002",
+        "CAR-2021-04-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "A write to a user-writable path is a candidate, not proof of process masquerading.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "masquerading.pe_identity_mismatch",
+      "car_ids": [
+        "CAR-2021-04-001",
+        "CAR-2013-05-002"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "P3 compares embedded PE identity and executed identity; CAR compares names/locations. Missing signer metadata does not prove an invalid signature.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "masquerading.pe_resource_claim",
+      "car_ids": [
+        "CAR-2021-04-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "Narrow resource claim remains candidate; embedded names alone are insufficient.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "network.dns.tracked",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Requires complete capture, usable clock, tracked lineage and signature-eligible flow. Protocol observation is not proof of malicious C2 intent. Clock drift/segments downgrade confidence.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "network.http.tracked",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Requires complete capture, usable clock, tracked lineage and signature-eligible flow. Protocol observation is not proof of malicious C2 intent. Clock drift/segments downgrade confidence.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "network.icmp.tracked",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Requires complete capture, usable clock, tracked lineage and signature-eligible flow. Protocol observation is not proof of malicious C2 intent. Clock drift/segments downgrade confidence.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "network.irc.tracked",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Requires complete capture, usable clock, tracked lineage and signature-eligible flow. Protocol observation is not proof of malicious C2 intent. Clock drift/segments downgrade confidence.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "network.smtp.tracked",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Requires complete capture, usable clock, tracked lineage and signature-eligible flow. Protocol observation is not proof of malicious C2 intent. Clock drift/segments downgrade confidence.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "network.tls.tracked",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Requires complete capture, usable clock, tracked lineage and signature-eligible flow. Protocol observation is not proof of malicious C2 intent. Clock drift/segments downgrade confidence.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "persistence.scheduled_task",
+      "car_ids": [
+        "CAR-2013-08-001",
+        "CAR-2021-12-001"
+      ],
+      "relation": "adapted",
+      "review_status": "reviewed",
+      "logic_review": "Exact schtasks executable with /create or TaskCache write => candidate; task registration outcome is missing.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 4,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "persistence.windows_service",
+      "car_ids": [
+        "CAR-2013-09-005",
+        "CAR-2014-02-001",
+        "CAR-2021-05-012"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "P3 supports CreateService or exact ImagePath writes. CAR service-outlier analytics need a 30-day baseline unavailable in short sandbox runs. Creation does not prove service start.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 2,
+        "synthetic_negative": 3,
+        "unmodified_recorded_positive": 1,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "registry.modify",
+      "car_ids": [
+        "CAR-2013-03-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "CAR examines reg.exe command context; P3 requires a successful modifying API. Queries cannot count.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 1,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "registry.open_or_create",
+      "car_ids": [
+        "CAR-2013-01-002"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "RegCreateKey may open an existing key; disposition absent => candidate.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sigma.*",
+      "car_ids": [],
+      "relation": "external_engine",
+      "review_status": "reviewed",
+      "logic_review": "Sigma tags remain source-specific candidates; shared ATT&CK tag does not validate native logic.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 0,
+        "synthetic_negative": 0,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "signature.*",
+      "car_ids": [],
+      "relation": "external_engine",
+      "review_status": "reviewed",
+      "logic_review": "CAPE signature producer is outside native CAR audit; unpacking quality policy preserved. Signature confidence is not CAR validation.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 0,
+        "synthetic_negative": 0,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.collection.keylogging_hook",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Global WH_KEYBOARD/WH_KEYBOARD_LL hook proves callback installation; callback delivery, collected keys and exfiltration are not established.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 2,
+        "unmodified_recorded_positive": 1,
+        "unmodified_recorded_negative": 2
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.collection.keylogging_precursor",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Polling or thread hook is candidate only.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.collection.screen_capture_api",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Successful PrintWindow proves capture of a window, not necessarily entire desktop.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.collection.screen_capture_artifacts",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Repeated encoded image writes remain candidate: an image is not proof of a screenshot.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.collection.screen_capture_artifacts_incomplete",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Image creation with missing capture source is candidate.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.credential.lsass",
+      "car_ids": [
+        "CAR-2019-07-002",
+        "CAR-2019-08-001",
+        "CAR-2020-05-001",
+        "CAR-2021-05-011"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "P3 requires LSASS identity, access then read/dump in same handle lifetime; CAR file/process/thread variants have different predicates.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 2,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.credential.lsass_incomplete",
+      "car_ids": [
+        "CAR-2019-08-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "Access without correlated read/dump is rejected, not credential dumping.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.discovery.registry_query",
+      "car_ids": [
+        "CAR-2013-03-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "Two distinct structured registry targets within 120s. CAR reg.exe ancestry is not implemented here.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 2,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.discovery.registry_query_single",
+      "car_ids": [
+        "CAR-2013-03-001"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "Single query is candidate only.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.discovery.system_location",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Distinct locale/timezone/geo query types in same PID and 120s. A single signal stays candidate.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 2,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.evasion.debugger_probe",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Exact debugger-query API or information class 7/30/31; a negative IsDebuggerPresent return still proves a probe.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 2,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 1,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.evasion.environment",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Two distinct environment queries in same PID/time window remain candidate; no branch evidence.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.evasion.environment_incomplete",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "One generic query is insufficient.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.injection.apc",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Queueing alone is candidate, not dispatch/execution. No observed promotion from SetThreadContext.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.injection.incomplete",
+      "car_ids": [
+        "CAR-2013-10-002"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "Incomplete remote sequence is rejected; remote access alone cannot prove injection.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.injection.write_execute",
+      "car_ids": [
+        "CAR-2013-10-002",
+        "CAR-2020-11-003"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "CAR DLL injection checks remote LoadLibrary; P3 checks ordered remote write then thread creation. Require same source/target handle lifetime, timestamp and explicit remote PID; no UAC inference.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 2,
+        "synthetic_negative": 10,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.network.smtp_attempt",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Explicit failed connect and failed command on same socket => attempted, not scored.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 1,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.network.smtp_success",
+      "car_ids": [],
+      "relation": "no_direct_equivalent",
+      "review_status": "reviewed",
+      "logic_review": "Explicit socket identity, successful mail-port connect then command in 120s; command send proves SMTP use, not C2 intent or server acceptance.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 1,
+        "synthetic_negative": 3,
+        "unmodified_recorded_positive": 0,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    },
+    {
+      "rule_id": "sm.persistence.run_key",
+      "car_ids": [
+        "CAR-2013-01-002"
+      ],
+      "relation": "related",
+      "review_status": "reviewed",
+      "logic_review": "CAR uses autorun differences; P3 uses a successful exact Run/RunOnce value write. No autorun baseline comparison is claimed.",
+      "validation_scope": "tests/car/native_cases.json; tests/car/independent_cape/manifest.json; docs/P32318_CAR_VALIDATION.md. Source review is not runtime validation.",
+      "test_summary": {
+        "synthetic_positive": 2,
+        "synthetic_negative": 7,
+        "unmodified_recorded_positive": 1,
+        "unmodified_recorded_negative": 0
+      },
+      "live_windows_validation": "pending"
+    }
+  ]
+}

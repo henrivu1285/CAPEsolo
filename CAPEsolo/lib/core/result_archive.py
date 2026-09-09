@@ -22,6 +22,14 @@ REVIEW_FILES = (
     "report_refresh.json",
     "capa_analysis.json",
     "capa_dynamic_sources.json",
+    "capa_dynamic_input.json",
+    "capa_dynamic_raw.json",
+    "capa_dynamic_raw.cache.json",
+    "behavior.provenance.jsonl",
+    "frida_behavior_provenance.json",
+    "frida_behavior_chains.json",
+    "p3_current_run.json",
+    "p32318_validation.json",
     "frida_p3_report.json",
     "frida_p3_report.txt",
     "frida_p3_runtime.json",
@@ -53,7 +61,9 @@ def select_result_files(analysis_dir: Path, mode: str) -> list[Path]:
         raise FileNotFoundError(f"analysis directory not found: {analysis_dir}")
 
     if mode == "review":
-        return [analysis_dir / name for name in REVIEW_FILES if (analysis_dir / name).is_file()]
+        selected = [analysis_dir / name for name in REVIEW_FILES if (analysis_dir / name).is_file()]
+        selected.extend(sorted(analysis_dir.glob("capa_static_*_raw*.json")))
+        return selected
     return sorted((p for p in analysis_dir.rglob("*") if p.is_file()), key=lambda p: p.as_posix().lower())
 
 
@@ -80,6 +90,7 @@ def build_result_archive(analysis_dir: Path, destination: Path, mode: str = "rev
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "analysis_dir": str(analysis_dir),
         "file_count": len(entries),
+        "missing_review_files": [name for name in REVIEW_FILES if not (analysis_dir / name).is_file()] if mode == "review" else [],
         "files": entries,
     }
 

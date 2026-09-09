@@ -318,17 +318,33 @@ def scan_loader_stub_markers(path: Path | None, max_bytes: int = 8 * 1024 * 1024
     ]
 
 
-def artifact_is_pe(item: dict, path: Path | None) -> bool:
-    # CAPE type 8 is explicitly "Unpacked PE Image" in generated reports.
-    if parse_cape_type_code(item) == 8:
-        return True
+def artifact_is_pe(item: dict, path: Path | None) -> bool | None:
+    # A missing file is unknown, not evidence of a non-PE. Validate PE headers.
     if path is None:
-        return False
+        return None
     try:
         with path.open("rb") as fh:
-            return fh.read(2) == b"MZ"
+            header = fh.read(64)
+            if len(header) < 64 or header[:2] != b"MZ":
+                return False
+            offset = int.from_bytes(header[60:64], "little")
+            if offset < 64 or offset > path.stat().st_size - 24:
+                return False
+            fh.seek(offset)
+            return fh.read(4) == b"PE\0\0"
     except OSError:
-        return False
+        return None
+
+
+def artifact_content_sha256(path):
+    if path is None:
+        return None
+    import hashlib
+    try:
+        with Path(path).open('rb') as handle:
+            return hashlib.file_digest(handle, 'sha256').hexdigest()
+    except OSError:
+        return None
 
 
 def classify_item(item: dict, ranges: list[dict], temporal: dict, analysis_dir: Path, cape_dir: Path) -> dict:
@@ -393,19 +409,18 @@ def classify_item(item: dict, ranges: list[dict], temporal: dict, analysis_dir: 
 
     instrumentation = bool(reasons)
     instrumentation_possible = bool(possible_reasons) and not instrumentation
-    malware_candidate = bool(
-        len(loader_markers) >= MIN_LOADER_STUB_MARKERS and not instrumentation
-    )
-    if malware_candidate:
+    # These are common imports in ordinary programs. Preserve them as context.
+    malware_candidate = False
+    if len(loader_markers) >= MIN_LOADER_STUB_MARKERS and not instrumentation:
         annotations.append({
             "kind": "loader_stub_signature",
             "markers": loader_markers,
             "minimum_markers": MIN_LOADER_STUB_MARKERS,
-            "effect": "malware_candidate_content_evidence",
+            "effect": "annotation_only_common_api_strings",
         })
     timing_only = bool(
         any(
-            str(item.get("effect") or "").startswith("annotation_only")
+            str(item.get("effect") or "").startswith("annotation_only") and str(item.get("kind") or "").startswith("frida_")
             for item in annotations
             if isinstance(item, dict)
         )
@@ -438,6 +453,8 @@ def classify_item(item: dict, ranges: list[dict], temporal: dict, analysis_dir: 
         "dump_base": f"0x{dump_base:x}" if dump_base is not None else None,
         "resolved_path": str(artifact_path) if artifact_path else None,
         "is_pe": is_pe,
+        "content_sha256": artifact_content_sha256(artifact_path),
+        "pe_validation": "verified_headers" if is_pe is True else "not_pe" if is_pe is False else "file_unavailable",
         "instrumentation": instrumentation,
         "instrumentation_possible": instrumentation_possible,
         "instrumentation_possible_timing_only": timing_only,
@@ -485,8 +502,29 @@ def classify_analysis(
 ) -> dict:
     analysis_dir = Path(analysis_dir).resolve()
     log_path = Path(analysis_log or analysis_dir / "analysis.log").resolve()
+    if runtime is None:
+        _, runtime = load_runtime_for_analysis(analysis_dir)
+    previous = {}
+    try:
+        previous = json.loads((analysis_dir / "frida_artifact_classification.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    if not (runtime or {}).get("run_id") or previous.get("run_id") != runtime.get("run_id"):
+        previous = {}
     manifest_path = Path(files_json).resolve() if files_json else choose_default_manifest(analysis_dir)
     if manifest_path is None:
+        if previous:
+            previous["classification_source"] = "historical_same_run_preserved"
+            previous["current_bytes_verified"] = False
+            artifacts = previous.get("artifacts", [])
+            previous["summary"] = {
+                "artifacts": len(artifacts), "instrumentation": sum(bool(a.get("instrumentation")) for a in artifacts),
+                "possible": sum(bool(a.get("instrumentation_possible")) for a in artifacts),
+                "timing_only": sum(bool(a.get("instrumentation_possible_timing_only")) for a in artifacts),
+                "malware_candidates": sum(bool(a.get("malware_candidate")) for a in artifacts),
+                "retained": sum(not a.get("instrumentation") for a in artifacts),
+                "retained_pe": sum(bool(a.get("is_pe")) and not a.get("instrumentation") for a in artifacts)}
+            return previous
         raise FileNotFoundError("files manifest not found")
 
     cape_dir = Path(cape_dir or analysis_dir / "CAPE").resolve()
@@ -503,6 +541,11 @@ def classify_analysis(
     ranges = parse_instrumentation_ranges_text(scoped_log_text)
     temporal = parse_temporal_provenance_text(scoped_log_text)
     classifications = [classify_item(item, ranges, temporal, analysis_dir, cape_dir) for item in items]
+    prior_by_path = {item.get("path"): item for item in previous.get("artifacts", [])}
+    for index, current in enumerate(classifications):
+        old = prior_by_path.get(current.get("path"))
+        if current.get("is_pe") is None and old and old.get("pids") == current.get("pids") and old.get("metadata") == current.get("metadata"):
+            classifications[index] = dict(old, classification_source="historical_same_run_preserved", current_bytes_verified=False)
 
     result = {
         "schema": "capesolo-frida-artifacts/3.2",

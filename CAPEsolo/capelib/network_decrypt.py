@@ -266,17 +266,21 @@ def DecryptStreams(analysisDir, pcapPath, tlsmaster=None):
         "converted": {},
     }
 
+    # Evidence availability is independent of decryption-engine availability.
+    if tlsmaster is None:
+        tlsmaster = GetTlsMaster(analysisDir)
+    output["secrets"] = len(tlsmaster)
+    output["key_material"] = {"status": "available" if tlsmaster else "not_observed", "count": len(tlsmaster)}
     reason = Unavailable()
     if reason:
         # Carries the specific reason, so the Network tab can say what to install rather than
         # only that decryption did not happen.
+        output["engine"] = {"status": "unavailable", "reason": reason}
         output["error"] = f"cannot decrypt streams: {reason}"
         return output
 
     output["available"] = True
-    if tlsmaster is None:
-        tlsmaster = GetTlsMaster(analysisDir)
-    output["secrets"] = len(tlsmaster)
+    output["engine"] = {"status": "available"}
 
     if not path_exists(str(pcapPath)):
         output["error"] = f"capture not found: {pcapPath}"

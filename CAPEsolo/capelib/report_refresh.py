@@ -1,4 +1,4 @@
-"""Refresh presentation after finalizer completion without re-running detectors."""
+"""Refresh derived mapping after finalization; never rerun acquisition or capa."""
 from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +24,15 @@ def refresh_report_quality(analysis_dir, finalizer):
         if current["run_id"] and final_id != current["run_id"]:
             raise ValueError("finalizer_run_id_mismatch")
         validate_snapshot(base, results, runtime)
+        if results.get("mitre_attack"):
+            from CAPEsolo.capelib.mitre_attack_v12 import AttackMapper
+            results["mitre_attack"] = AttackMapper(results, base).build()
+            status["detectors_rerun"] = True
+            status["recomputed"] = "native_sigma_mapping_from_immutable_clean"
+        if results.get("capa"):
+            from CAPEsolo.capelib.capa_integration import correlate_attack
+            results["capa"]["attack_comparison"] = correlate_attack(results)
+            atomic_json(base / "capa_analysis.json", results["capa"])
         results["analysis_quality"] = collect_quality(results, base, finalizer)
         results["threat_assessment"] = assess_threat(results)
         redact_report_in_place(results)

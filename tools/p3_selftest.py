@@ -336,9 +336,10 @@ def test_artifact_content_evidence():
         assert frida_result["instrumentation"] is True, frida_result
         assert frida_result["classification"] == "instrumentation_confirmed", frida_result
         assert loader_result["instrumentation"] is False, loader_result
-        assert loader_result["malware_candidate"] is True, loader_result
+        # p32318: common API strings are context, not maliciousness evidence.
+        assert loader_result["malware_candidate"] is False, loader_result
         assert loader_result["instrumentation_possible_timing_only"] is False, loader_result
-        assert loader_result["classification"] == "malware_candidate", loader_result
+        assert loader_result["classification"] == "unclassified", loader_result
 
 
 def test_attach_defaults_present():
@@ -1651,8 +1652,8 @@ def test_mitre_blackenergy21_pe_metadata_masquerading_replay():
     assert (matched_name["status"], matched_name["confidence"]) == ("candidate", "medium")
 
     # Parent and sub-technique belong to one score family and therefore cannot
-    # double-charge the risk score. The supplied-run shape moves from the old
-    # benign boundary into Suspicious, not directly to Malicious on metadata.
+    # double-charge the risk score. Unverified unpacking adds no score; the
+    # metadata-only result remains provisional.
     from CAPEsolo.capelib.threat_assessment import assess_threat
     results["mitre_attack"] = report
     assessment = assess_threat(results)
@@ -1662,7 +1663,8 @@ def test_mitre_blackenergy21_pe_metadata_masquerading_replay():
         for row in component["signals"] if str(row.get("id") or "").startswith("T1036")
     ]
     assert len(masquerading_signals) == 1 and masquerading_signals[0]["points"] == 5
-    assert assessment["verdict"] == "suspicious", assessment
+    assert assessment["score"] < 20 and assessment["provisional"] is True, assessment
+    assert mappings["T1140"]["status"] == "candidate"
 
     if importlib.util.find_spec("markupsafe") is not None and importlib.util.find_spec("jinja2") is not None:
         from CAPEsolo.classes.html_report import ReportHTML
@@ -1758,7 +1760,8 @@ def test_mitre_evidence_first_dyre_mapping():
         write_artifact=False,
     )
     observed = {item["id"] for item in report["mappings"] if item["status"] == "observed"}
-    assert {"T1027.002", "T1057", "T1070.004", "T1112", "T1547.001"}.issubset(observed), report
+    assert {"T1057", "T1070.004", "T1112", "T1547.001"}.issubset(observed), report
+    assert "T1027.002" not in observed, report  # no corroborated unpacking artifact
     t1140 = next(item for item in report["mappings"] if item["id"] == "T1140")
     assert t1140["status"] == "candidate", t1140
     assert "T1055" not in {item["id"] for item in report["mappings"]}
@@ -1865,9 +1868,9 @@ def test_mitre_unpacker_requires_extracted_artifact_for_t1140():
     }}]
     with_artifact = map_mitre_attack(results, write_artifact=False)
     mapped = next(row for row in with_artifact["mappings"] if row["id"] == "T1140")
-    assert mapped["status"] == "observed" and mapped["confidence"] == "high", mapped
-    assert mapped["evidence"][0]["details"]["extracted_payload_count"] == "1"
-    assert "a" * 64 in mapped["evidence"][0]["details"]["extracted_payloads"]
+    assert mapped["status"] == "candidate" and mapped["confidence"] == "low", mapped
+    assert mapped["evidence"][0]["details"]["eligible_payload_count"] == "0"
+    assert "a" * 64 in mapped["evidence"][0]["details"]["artifact_decisions"]
 
 
 def test_mitre_legacy_id_normalization():
@@ -1895,6 +1898,8 @@ def test_mitre_artifact_and_html_rendering():
             "Buffer": "<script>alert(1)</script>",
         })]
         results = _attack_results(calls, process_name="<script>sample.exe</script>")
+        (analysis / "frida_p3_runtime.json").write_text(json.dumps({"run_id":"html-fixture", "target_pid":10,
+            "lineage":{"10":{"role":"root", "exe":r"C:\Lab\sample.exe"}}}), encoding="utf-8")
         results["mitre_attack"] = map_mitre_attack(results, analysis, write_artifact=True)
         assert (analysis / "mitre_attack.json").is_file()
         # The production CAPEsolo environment already requires Jinja2 and
@@ -1942,7 +1947,7 @@ def test_mitre_full_offline_catalog_and_official_detection_metadata():
 def test_mitre_state_machine_time_and_target_gates():
     from CAPEsolo.capelib.mitre_attack import map_mitre_attack
     late = [
-        _attack_call("NtWriteVirtualMemory", {"ProcessHandle": "0x200"}, "2026-08-27 18:15:00,000"),
+        _attack_call("NtWriteVirtualMemory", {"ProcessHandle": "0x200", "ProcessId": 99}, "2026-08-27 18:15:00,000"),
         _attack_call("NtCreateThreadEx", {"ProcessHandle": "0x200", "ProcessId": 99}, "2026-08-27 18:17:01,000"),
     ]
     report = map_mitre_attack(_attack_results(late), write_artifact=False)
@@ -2058,9 +2063,10 @@ def test_mitre_screen_capture_artifact_state_machine():
     calls[1]["arguments"][1]["raw_value"] = "ffd8ffe000104a464946"
     report = map_mitre_attack(_attack_results(calls), write_artifact=False)
     mapped = next(row for row in report["mappings"] if row["id"] == "T1113")
-    assert (mapped["status"], mapped["confidence"]) == ("observed", "high"), mapped
+    assert (mapped["status"], mapped["confidence"]) == ("candidate", "medium"), mapped
     state = next(row for row in mapped["state_machines"] if row["rule_id"] == "sm.collection.screen_capture_artifacts")
-    assert state["complete"] is True and state["state_trace"].count("image_artifact") == 2
+    assert state["complete"] is False and state["state_trace"].count("image_artifact") == 2
+    assert "screen capture source" in state["missing_steps"] and state["scoreable"] is False
 
     one = map_mitre_attack(_attack_results(calls[:2]), write_artifact=False)
     incomplete = next(row for row in one["mappings"] if row["id"] == "T1113")
@@ -2187,7 +2193,9 @@ def test_threat_assessment_thresholds_caps_and_quality():
     malicious_results["payloads"] = [{"artifact": {"sha256": "a" * 64, "size": 4096, "cape_type": "Unpacked PE Image", "pid": 10}}]
     malicious_results["mitre_attack"] = map_mitre_attack(malicious_results, write_artifact=False)
     malicious = assess_threat(malicious_results)
-    assert malicious["score"] >= 60 and malicious["verdict"] == "malicious", malicious
+    # Payload metadata without provenance no longer pushes this fixture over 60.
+    assert 20 <= malicious["score"] < 60 and malicious["verdict"] == "suspicious", malicious
+    assert not any(x.get("signal") in {"T1140", "T1027.002", "Unpacker"} for x in malicious["top_reasons"])
     assert sum(component["points"] for component in malicious["components"]) == malicious["score"]
 
     repeated = _attack_results([_attack_call("IsDebuggerPresent", {}, status=False) for _ in range(100)])
@@ -2275,8 +2283,8 @@ def test_mitre_timestamped_chain_discovery():
         }]}}
         (analysis / "frida_p3_report(20260828-055858).json").write_text(json.dumps(chain_report), encoding="utf-8")
         report = AttackMapper(_attack_results(), analysis).build()
-        mapped = next(row for row in report["mappings"] if row["id"] == "T1547.001")
-        assert mapped["status"] == "observed" and "behavior_chain" in mapped["sources"]
+        # CAR review: discovering an old chain does not establish current clean-call proof.
+        assert "T1547.001" not in {row["id"] for row in report["mappings"]}
         assert report["coverage"]["behavior_chains"]["chains"] == 1
 
 
@@ -2291,6 +2299,8 @@ def test_mitre_report_time_preparation_builds_clean_view_and_chains():
         for index, call in enumerate(calls, 1): call["id"] = index
         results = _attack_results(calls)
         results["behavior"]["processes"][0]["threads"] = ["1"]
+        (analysis / "frida_p3_runtime.json").write_text(json.dumps({"run_id":"owned-fixture", "target_pid":10,
+            "lineage":{"10":{"role":"root", "exe":r"C:\Lab\sample.exe"}}}), encoding="utf-8")
         report = map_mitre_attack(results, analysis, write_artifact=False)
         assert (analysis / "behavior.filtered.jsonl").is_file()
         assert (analysis / "frida_behavior_chains.json").is_file()

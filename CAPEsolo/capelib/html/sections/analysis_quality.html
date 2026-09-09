@@ -7,6 +7,11 @@
 <p>{{ quality.interpretation }}</p>
 <p>Clean API records: {{ quality.clean_api_records }}. VM snapshot cleanliness: unverified.</p>
 <p>Evidence byte consistency: {{ (quality.evidence_consistency | default({})).get('status', 'unavailable') }}. Source: {{ (quality.evidence_consistency | default({})).get('origin', 'unknown') }}.</p>
+{% if quality.network and quality.network.clock_offset_span_seconds is defined and quality.network.clock_offset_span_seconds is not none %}<p>Clock offset span: {{ quality.network.clock_offset_span_seconds }} s. Clock compensation does not establish clock stability.</p>{% endif %}
+{% if quality.unpacking_evidence %}
+<p>Unpacking evidence: <strong>{{ quality.unpacking_evidence.status }}</strong> · Eligible unpacked PE files: {{ quality.unpacking_evidence.eligible_payloads }} · Contributes unpacking score: {{ quality.unpacking_evidence.scoreable }}.</p>
+<details><summary>Unpacking evidence limits</summary><ul>{% for reason,count in quality.unpacking_evidence.reasons.items() %}<li>{{ reason }}: {{ count }}</li>{% endfor %}</ul><p>{{ quality.unpacking_evidence.interpretation }}</p></details>
+{% endif %}
 {% if quality.disabled_hooks %}<p class="text-warning">Rate-capped hooks: {{ quality.disabled_hooks | join(', ') }}</p>{% endif %}
 {% if quality.background_rate_caps %}<p>{{ quality.background_rate_caps | length }} background-process rate-cap events are listed separately and do not reduce tracked-process API counts.</p>{% endif %}
 {% if quality.limitations %}<ul>{% for limitation in quality.limitations %}<li>{{ limitation }}</li>{% endfor %}</ul>{% endif %}

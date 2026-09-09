@@ -26,7 +26,7 @@ ENGINE_VERSION = "9.4.0"
 DATA = Path(__file__).resolve().parents[1] / "data" / "capa"
 DEFAULTS = {"enabled": True, "dynamic": True, "static": True, "cache": True, "python": "",
             "executable": "", "rules_dir": "", "signatures_dir": "", "dynamic_timeout": 600,
-            "static_timeout": 180, "max_static_files": 8, "max_file_bytes": 67108864,
+            "static_timeout": 600, "max_static_files": 8, "max_file_bytes": 67108864,
             "max_clean_bytes": 268435456, "max_calls": 250000, "max_output_bytes": 134217728}
 
 
@@ -153,6 +153,8 @@ def project_dynamic(results, clean_path, config):
             if not line.strip():
                 continue
             row = json.loads(line)
+            if row.get("provenance") == "unknown":
+                raise ValueError("target_lineage_unresolved_unknown_clean_calls")
             pid = _number(row["pid"])
             call = row["call"]
             key = (pid, str(call.get("id")))
@@ -291,7 +293,9 @@ def _run_engine(command, input_path, output, config, dynamic):
                 doc = json.loads(output.read_text(encoding="utf-8"))
                 summarize_engine(doc)
                 return {"status": "ok", "capabilities": [], "raw_result": output.name, "raw_sha256": cached["raw_sha256"],
-                        "document": doc, "cache_hit": True, "elapsed_seconds": 0, "exit_code": 0}
+                        "document": doc, "cache_hit": True, "elapsed_seconds": 0, "exit_code": 0,
+                        "original_elapsed_seconds": cached.get("original_elapsed_seconds"),
+                        "cache_created_utc": cached.get("created_utc"), "timing_semantics": "cached_result_no_engine_execution"}
             except (OSError, ValueError, TypeError):
                 pass
     started = time.monotonic()
@@ -348,7 +352,9 @@ def _run_engine(command, input_path, output, config, dynamic):
         digest = sha256(output)
         status.update(status="ok", raw_result=output.name, raw_sha256=digest, document=doc)
         try:
-            atomic_json(cache_path, {"fingerprint": fingerprint, "raw_sha256": digest})
+            atomic_json(cache_path, {"fingerprint": fingerprint, "raw_sha256": digest,
+                "original_elapsed_seconds": round(time.monotonic() - started, 3),
+                "created_utc": datetime.now(timezone.utc).isoformat()})
         except OSError as exc:
             status["cache_warning"] = str(exc)
         return status
@@ -414,6 +420,7 @@ def analyze_capa(results, analysis_dir, output_dir=None, overrides=None, static_
     try:
         publish("preflight")
         config = load_settings(overrides)
+        result["execution_settings"] = {key: config[key] for key in ("static_timeout", "dynamic_timeout", "cache")}
         if not config["enabled"] or not (config["dynamic"] or config["static"]):
             result["status"] = "disabled"
             result["dynamic"]["status"] = result["static"]["status"] = "disabled"

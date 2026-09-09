@@ -1,0 +1,6 @@
+{% if timing.cache_hit %}
+<p>Reused verified cache; capa was not executed for this result. Lookup time: {{ timing.elapsed_seconds }} s.
+Original engine time: {% if timing.original_elapsed_seconds is defined and timing.original_elapsed_seconds is not none %}{{ timing.original_elapsed_seconds }} s{% else %}unavailable in this older cache{% endif %}.</p>
+{% elif timing.elapsed_seconds is defined %}
+<p>Engine time: {{ timing.elapsed_seconds }} s · Exit code: {{ timing.exit_code | default('unavailable') }}.</p>
+{% endif %}
