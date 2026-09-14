@@ -54,6 +54,19 @@ def collect_quality(results, analysis_dir, finalizer=None):
         with clean.open(encoding="utf-8") as f:
             clean_count = sum(bool(line.strip()) for line in f)
     limitations = []
+    from CAPEsolo.capelib.service_processes import attach_service_processes
+    try:
+        service = attach_service_processes(results, base)
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        service = {"status": "failed", "links": [], "limitations": ["service_correlation_failed:"+type(exc).__name__]}
+        results["service_processes"] = service
+    if service.get("links") or service.get("unresolved_services") or service.get("status") in {"partial", "failed"}:
+        limitations.extend(service.get("limitations", []))
+        axes["service_process_coverage"] = "partial" if service.get("status") in {"partial", "failed"} else "complete"
+    if service.get("evtx_status") in {"partial", "invalid"}:
+        axes["evtx_export"] = "degraded"
+        limitations.append("evtx_export_"+service["evtx_status"])
+
     harmful_hooks = hooks - set(api.get("framework_only_rate_caps") or [])
     if harmful_hooks or (not hooks and api.get("api_rate_cap_detected") and not background):
         limitations.append("api_rate_capped_counts_are_lower_bounds")
@@ -69,9 +82,14 @@ def collect_quality(results, analysis_dir, finalizer=None):
         axes["target_attribution"] = "degraded"
     if axes.get("frida_child") in {"partial", "capemon_only", "capemon_observed_prewarm_unavailable"}:
         limitations.append("frida_child_partial_capemon_may_still_be_present")
-    if (network.get("packet_loss") or {}).get("status") == "unknown":
+    pcap = read_json(base / "pcap_runtime.json")
+    if axes.get("network_capture") == "failed" or pcap.get("status") == "start_failed":
+        limitations.append("pcap_capture_failed")
+    if axes.get("resultserver") in {"degraded", "failed", "incomplete"}:
+        limitations.append("resultserver_incomplete_transfers")
+    if (network.get("packet_loss") or {}).get("status") == "unknown" and axes.get("network_capture") != "failed":
         limitations.append("pcap_drop_count_unknown")
-    if (network.get("flows") or {}).get("tracked") == 0:
+    if (network.get("flows") or {}).get("tracked") == 0 and axes.get("network_capture") != "failed":
         limitations.append("no_pcap_flow_attributed_to_tracked_processes")
     clock = network.get("clock_correlation") or {}
     if clock.get("status") == "clock_slew_compensated":
@@ -110,8 +128,10 @@ def collect_quality(results, analysis_dir, finalizer=None):
         "background_rate_caps": background, "by_pid_api": pid_caps,
         "evidence_consistency": {"status": snapshot_status, "origin": snapshot_origin},
         "network": {"flows": network.get("flows", {}), "packet_loss": network.get("packet_loss", {}), "clock_status": clock.get("status", "unknown"),
+                    "capture_status": pcap.get("status", axes.get("network_capture")), "capture_errors": pcap.get("errors", []),
                     "clock_offset_span_seconds": clock.get("offset_span_seconds"),
                     "clock_compensation_is_not_stability": True},
+        "service_processes": service,
         "unpacking_evidence": results.get("unpacking_evidence") or {},
         "clean_snapshot_verified": False,
         "interpretation": "Collection completion does not imply complete API coverage. Missing capability matches cannot establish absence of behavior. Sigma EventID projections do not establish Sysmon configuration.",

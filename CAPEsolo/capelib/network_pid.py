@@ -67,6 +67,25 @@ def load_network_evidence(analysis_dir, runtime=None):
     sysmon = runtime.get("sysmon") if isinstance(runtime.get("sysmon"), dict) else {}
     events = sysmon.get("network_events") if isinstance(sysmon.get("network_events"), list) else []
     lineage = runtime.get("lineage") if isinstance(runtime.get("lineage"), dict) else {}
+    lineage = deepcopy(lineage)
+    services = _load_json(Path(analysis_dir)/"service_processes.json")
+    if services.get("run_id") and services["run_id"] == runtime.get("run_id"):
+        from CAPEsolo.capelib.service_processes import sha
+        trusted = bool(services.get("source_sha256"))
+        for name, expected in (services.get("source_sha256") or {}).items():
+            if name not in {"evtx_collection.json", "evtx_events.jsonl", "behavior.filtered.jsonl", "frida_p3_runtime.json"}:
+                trusted = False; break
+            p = Path(analysis_dir)/name
+            if not p.is_file() or sha(p) != expected:
+                trusted = False; break
+        if trusted:
+            # Preserve multiple process instances; never overwrite an existing PID's identity.
+            for item in services.get("links", []):
+                key = str(item["process_id"])
+                if key not in lineage and item["process_id"] not in lineage:
+                    lineage[key] = {"role": "service_process", "exe": item["image"],
+                                    "sysmon_guid": item["process_guid"], "creator_pid": item["creator_pid"],
+                                    "ppid": item["parent_pid"], "evidence_source": "service_processes.json"}
     return events, lineage
 
 
@@ -190,6 +209,8 @@ def _process_meta(event, lineage):
     # ProcessGuid is the PID-reuse guard. A known mismatch invalidates the event
     # for this analysis lineage instead of silently assigning it to a reused PID.
     tracked = bool(meta) and not (event_guid and known_guid and event_guid != known_guid)
+    if meta.get("role") == "service_process":
+        tracked = tracked and bool(event_guid and event_guid == known_guid)
     return {
         "pid": pid or None,
         "process_guid": event_guid or None,

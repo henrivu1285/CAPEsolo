@@ -36,7 +36,7 @@
         </div>
         <div class="card-body">
             <div class="row g-2 mb-3">
-                <div class="col-6 col-lg-3"><strong>{{ sigma.pack_summary.compiled_rules or 0 }}</strong><div class="small text-secondary">Pinned ATT&amp;CK-tagged rules</div></div>
+                <div class="col-6 col-lg-3"><strong>{{ sigma.pack_summary.compiled_rules or 0 }}</strong><div class="small text-secondary">Pinned Windows rules</div></div>
                 <div class="col-6 col-lg-3"><strong>{{ sigma.coverage.evaluated_rules or 0 }}</strong><div class="small text-secondary">Rules compatible with this run</div></div>
                 <div class="col-6 col-lg-3"><strong>{{ sigma.coverage.matched_rules or 0 }}</strong><div class="small text-secondary">Matched rules</div></div>
                 <div class="col-6 col-lg-3"><strong>{{ sigma.attack_candidates | length }}</strong><div class="small text-secondary">ATT&amp;CK candidates</div></div>
@@ -45,6 +45,9 @@
                 Available log sources: <span class="mono">{{ sigma.telemetry.available_logsources | join(', ') }}</span>.
                 Unsupported by sensor: {{ sigma.coverage.unsupported_by_sensor or 0 }} rules;
                 unsupported fields: {{ sigma.coverage.unsupported_fields or 0 }} rules.
+                Untagged rules retained: {{ sigma.pack_summary.untagged_compatible_rules or 0 }}.
+                Missing fields in actual events: {{ (sigma.coverage.evaluation_statuses | default({})).get("missing_event_fields", 0) }} rules.
+                No relevant events: {{ (sigma.coverage.evaluation_statuses | default({})).get("no_events", 0) }} rules.
             </div>
             {% if sigma.coverage.unsupported_by_sensor_categories or sigma.coverage.unsupported_fields_by_name %}
             <details class="small mt-2">
@@ -54,6 +57,7 @@
             </details>
             {% endif %}
         </div>
+        {% if sigma.rule_evaluations %}<details class="m-3"><summary>All Sigma rule evaluation states</summary><div class="table-responsive"><table class="table table-dark table-sm"><thead><tr><th>Rule</th><th>State</th><th>Missing fields</th></tr></thead><tbody>{% for row in sigma.rule_evaluations %}<tr><td>{{ row.title }}<br><small>{{ row.rule_id }}</small></td><td>{{ row.status }}</td><td>{{ row.missing_fields | join(", ") }}</td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
         {% if sigma.matches %}
         <div class="table-responsive">
             <table class="table table-dark table-striped align-middle mb-0">
@@ -67,7 +71,7 @@
                         {% if match.source_path %}<div class="small"><a href="{{ sigma.source.repository }}/blob/{{ sigma.source.commit }}/{{ match.source_path }}" target="_blank" rel="noopener noreferrer">Pinned source rule</a></div>{% endif %}
                         {% if match.falsepositives %}<div class="small text-secondary">False-positive context: {{ match.falsepositives | join('; ') }}</div>{% endif %}
                     </td>
-                    <td class="mono">{{ match.attack_ids | join(', ') }}</td>
+                    <td class="mono">{{ match.attack_ids | join(', ') if match.attack_ids else 'Unmapped finding' }}</td>
                     <td>{{ match.status }} / {{ match.level }}<div class="small text-warning">candidate · {{ match.confidence }}</div></td>
                     <td class="mono">{{ match.logsource.category }}</td>
                     <td class="small mono">{% for key, value in match.matched_fields.items() %}{{ key }}={{ value }}{% if not loop.last %}; {% endif %}{% endfor %}</td>
@@ -83,6 +87,7 @@
     <div class="alert alert-warning">Sigma evaluation unavailable: {{ sigma.reason }}. Native P3 ATT&amp;CK mapping remains active.</div>
     {% endif %}
 
+    {% include 'sections/car.html' %}
     {% if attack.car_review %}
     <div class="card mb-3">
         <div class="card-header">CAR native-detector review</div>

@@ -279,7 +279,11 @@ class AttackMapper:
         self.lineage = self._json_artifact("frida_p3_runtime.json", "frida_p3_runtime*.json").get("lineage") or {}
         self.p3_report = self._json_artifact("frida_p3_report.json", "frida_p3_report*.json")
         self.chains = self._chains(); self.clean_rows, self.clean_source = self._clean_rows()
+        if self.clean_source not in {"raw_behavior_fallback", "invalid_snapshot_no_raw_fallback"}:
+            from tools.frida_behavior_chains import extract_behavior_chains_from_records
+            self.chains = extract_behavior_chains_from_records(self.clean_rows)
         self.sigma_report = {}
+        self.car_report = {}
         if self.clean_source == "raw_behavior_fallback": self.warnings.append({"code": "clean_behavior_unavailable", "severity": "warning", "message": "Canonical clean behavior was unavailable; conservative raw-call fallback was used."})
 
     def _json_artifact(self, exact: str, pattern: str) -> dict:
@@ -742,8 +746,18 @@ class AttackMapper:
     def _evaluate_states(self, semantic: dict) -> None:
         run = evaluate_sequence(SequenceRule("sm.persistence.run_key", ("run_key_write",), ("payload_materialized", "payload_executed"), 600), semantic["persistence"])
         if run.get("matched"):
-            state = self._state("sm.persistence.run_key", run, ["successful registry write", "structured Run/RunOnce path", "same PID/target for corroboration"]); self.state_evaluations.append(state)
-            self.add("T1547.001", "observed", "high" if run.get("optional") else "medium", "sm.persistence.run_key", "Run-key persistence satisfied the registry-write state; materialization/execution raises confidence.", run["matched"][-1].evidence, state=state)
+            anchor = run["matched"][-1].evidence
+            corroboration = next((chain for chain in self.chains.get("chains", [])
+                if chain.get("chain_type") == "persistence_run_key" and chain.get("confidence") == "high"
+                and chain.get("materialization_observed") and self.clean_source not in {"raw_behavior_fallback", "invalid_snapshot_no_raw_fallback"}
+                and any(str((step.get("evidence") or {}).get("pid")) == str(anchor.get("pid"))
+                        and (step.get("evidence") or {}).get("call_id") == anchor.get("call_id")
+                        for step in chain.get("steps", []) if step.get("kind") == "run_key_write")), None)
+            state = self._state("sm.persistence.run_key", run, ["successful registry write", "structured Run/RunOnce path", "same PID or verified ancestor, exact target, ordered within 600s"])
+            if corroboration:
+                state["lineage_corroboration"] = {"steps": corroboration["steps"], "links": corroboration.get("lineage_links", [])}
+            self.state_evaluations.append(state)
+            self.add("T1547.001", "observed", "high" if run.get("optional") or corroboration else "medium", "sm.persistence.run_key", "Run-key persistence satisfied the registry-write state; materialization/execution raises confidence.", anchor, state=state)
 
         injection = evaluate_sequence(SequenceRule("sm.injection.write_execute", ("remote_write", "remote_execute"), ("process_open",), 60), semantic["injection"])
         state = self._state("sm.injection.write_execute", injection, ["clean behavior", "same source PID", "same remote target", "ordered within 60 seconds"])
@@ -1104,6 +1118,22 @@ class AttackMapper:
                     evidence, original,
                 )
 
+    def _map_car(self) -> None:
+        from CAPEsolo.capelib.car_runtime import evaluate_car
+        self.car_report = evaluate_car(self.results, self.analysis_path,
+            None if self.clean_source in {"raw_behavior_fallback", "invalid_snapshot_no_raw_fallback"} else self.clean_rows)
+        for match in self.car_report.get("matches", []):
+            meta = match.get("evidence") or {}
+            evidence = self._evidence("car_analytic", match["title"], {"process_id": meta.get("pid")},
+                {"timestamp": meta.get("timestamp"), "api": meta.get("api"), "id": meta.get("call_id")},
+                {"car_id": match["car_id"], "variant": match["variant"], "fields": match["matched_fields"],
+                 "evidence_fingerprint": match["evidence_fingerprint"], "source_url": match["source_url"]})
+            for raw in match.get("attack_ids", []):
+                technique, original = normalize_technique_id(raw)
+                if technique:
+                    self.add(technique, "candidate", "low", "car." + match["car_id"],
+                        "A selected CAR pattern matched canonical telemetry. Execution success and malicious intent require native semantic evidence; shared input is not independent corroboration.", evidence, original)
+
     def _detector_coverage(self) -> dict:
         all_domains = _safe_json(_catalog_path()).get("domains") or {}; rows = {}
         for domain, metadata in all_domains.items():
@@ -1146,7 +1176,7 @@ class AttackMapper:
         }
 
     def build(self) -> dict:
-        self._map_target_masquerading(); self._map_calls(); self._map_chains(); self._map_signatures(); self._map_network(); self._map_sigma(); coverage = self._coverage()
+        self._map_target_masquerading(); self._map_calls(); self._map_chains(); self._map_signatures(); self._map_network(); self._map_sigma(); self._map_car(); coverage = self._coverage()
         resolved = {technique for technique, row in self.mappings.items() if row.get("status") in {"observed", "attempted"}}
         rejected = [row for row in self.rejected if row.get("id") not in resolved]
         mappings = sorted(self.mappings.values(), key=lambda row: (-STATUS_RANK.get(row.get("status"), 0), -CONFIDENCE_RANK.get(row.get("confidence"), 0), row.get("id", "")))
@@ -1168,11 +1198,13 @@ class AttackMapper:
                 "tactics": len(tactics),
                 "sigma_rule_matches": len(self.sigma_report.get("matches") or []),
                 "sigma_attack_candidates": len(self.sigma_report.get("attack_candidates") or []),
+                "car_analytic_matches": sum(row.get("status") == "matched" for row in self.car_report.get("evaluations", [])),
             },
             "tactics": tactics, "mappings": mappings,
             "rejected_candidates": sorted(rejected, key=lambda row: (row.get("id", ""), row.get("rule_id", ""))),
             "state_machine_evaluations": self.state_evaluations, "coverage": coverage, "coverage_warnings": self.warnings,
             "sigma": self.sigma_report,
+            "car": self.car_report,
             "semantics": {
                 "observed": "The producer reports observed behavior; this does not independently prove malicious intent. Review per-rule evidence and source-specific confidence.",
                 "attempted": "A direct technique action was attempted but failed; completion is not claimed.",

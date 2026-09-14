@@ -1441,9 +1441,14 @@ def write_report(report: dict, output_dir: Path) -> tuple[Path, Path]:
     ]
     from CAPEsolo.capelib.report_refresh import refresh_report_quality
     refresh_report_quality(output_dir, report)
-    derived.extend(output_dir / name for name in ("behavior.snapshot.json", "analysis_quality.json", "capa_execution.json", "report_refresh.json",
-                     "report.json", "report.html", "mitre_attack.json", "capa_analysis.json", "capa_dynamic_sources.json"))
-    _mirror_derived_files(output_dir, (report.get("run") or {}).get("run_id"), derived)
+    # The per-run folder must use the same evidence contract as GUI/CLI export.
+    # Previously dynamic input/raw/cache were omitted from this mirror.
+    from CAPEsolo.lib.core.result_archive import select_result_files, audit_evidence
+    derived.extend(select_result_files(output_dir, "review"))
+    run_dir = _mirror_derived_files(output_dir, (report.get("run") or {}).get("run_id"), list(dict.fromkeys(derived)))
+    if run_dir:
+        from CAPEsolo.capelib.capa_integration import atomic_json
+        atomic_json(run_dir / "evidence_audit.json", audit_evidence(run_dir))
     return json_path, txt_path
 
 

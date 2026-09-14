@@ -13,7 +13,7 @@ from typing import Any
 from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION
 
 SCHEMA = "capesolo-threat-assessment/1.0"
-SCORE_VERSION = "p32318-car1-evidence-v5"
+SCORE_VERSION = "p32319-evidence-v6"
 THRESHOLDS = {
     "benign": {"minimum": 0, "maximum": 19},
     "suspicious": {"minimum": 20, "maximum": 59},
@@ -64,7 +64,7 @@ def _attack_component(attack: dict) -> dict:
     for mapping in attack.get("mappings") or []:
         if not isinstance(mapping, dict) or mapping.get("status") not in STATUS_FACTORS:
             continue
-        rules = set(mapping.get("rule_ids") or [])
+        rules = {r for r in mapping.get("rule_ids") or [] if not str(r).startswith(("car.", "sigma.", "capa."))}
         if mapping.get("status") == "candidate" and rules and all(r.lower() in {
             "signature.unpacker", "signature.compression", "signature.decryption"} for r in rules):
             continue
@@ -72,7 +72,7 @@ def _attack_component(attack: dict) -> dict:
         # not inflate the maliciousness score.  When a native detector also
         # supports the same mapping, normal scoring still applies.
         sources = {str(value) for value in mapping.get("sources") or []}
-        if mapping.get("status") == "candidate" and sources and sources <= {"sigma_rule", "capa_dynamic"}:
+        if mapping.get("status") == "candidate" and sources and sources <= {"sigma_rule", "capa_dynamic", "car_analytic"}:
             continue
         family = str(mapping.get("id") or "").split(".", 1)[0]
         raw = _technique_base(mapping)

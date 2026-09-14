@@ -195,10 +195,7 @@ def build_pack(sigma_root: Path) -> dict:
                 continue
             tags = [str(tag) for tag in (rule.tags or [])]
             attack_ids = sorted({match.group(1).upper() for tag in tags if (match := ATTACK_TAG.match(tag))})
-            if not attack_ids:
-                skipped["no_attack_technique_tag"] += 1
-                continue
-            tagged += 1
+            tagged += bool(attack_ids)
             try:
                 parsed = [_compile_node(condition.parsed) for condition in rule.detection.parsed_condition]
             except (UnsupportedIR, re.error) as exc:
@@ -241,12 +238,13 @@ def build_pack(sigma_root: Path) -> dict:
             "products": ["windows"],
             "categories": sorted(SUPPORTED_CATEGORIES),
             "statuses": sorted(ALLOWED_STATUSES),
-            "requires_attack_technique_tag": True,
+            "requires_attack_technique_tag": False,
         },
         "summary": {
             "source_files": len(source_files),
             "attack_tagged_compatible_rules": tagged,
             "compiled_rules": len(compiled),
+            "untagged_compatible_rules": sum(not row["attack_ids"] for row in compiled),
             "skipped": dict(sorted(skipped.items())),
             "categories": dict(sorted(categories.items())),
         },

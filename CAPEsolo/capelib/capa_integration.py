@@ -556,4 +556,6 @@ def enrich_report(results, analysis_dir, output_dir=None, overrides=None, static
     results["capa"]["attack_comparison"] = correlate_attack(results)
     atomic_json(out / "capa_analysis.json", results["capa"])
     atomic_json(out / "analysis_quality.json", quality)
+    from CAPEsolo.capelib.rule_coverage import attach_rule_coverage
+    attach_rule_coverage(results, out)
     return results["capa"]

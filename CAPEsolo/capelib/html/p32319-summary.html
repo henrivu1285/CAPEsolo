@@ -1,0 +1,11 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>P3.2.3.19 analysis</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;background:#101923;color:#e5edf5;max-width:1200px;margin:auto;padding:24px}h1,h3,h4{color:#7dd3fc}section{border:1px solid #3d5063;border-radius:8px;margin:24px 0;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #3d5063;padding:10px;text-align:left;vertical-align:top}pre,.mono{font:13px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}td,p,summary{overflow-wrap:anywhere}.text-warning{color:#f5c877}.small,small{font-size:13px}.table-responsive{overflow:auto}details{margin:8px 0}summary{cursor:pointer}a{color:#7dd3fc}</style></head><body>
+<h1>P3.2.3.19 · evidence review</h1><p>Target: {{ results.target.name }}<br>SHA256: <span class="mono">{{ results.target.sha256 }}</span></p>
+{% include 'sections/threat_assessment.html' %}
+{% include 'sections/analysis_quality.html' %}
+{% include "sections/service_processes.html" %}
+{% include 'sections/mitre.html' %}
+<section><h3>Sigma normalization</h3><p>{{ results.mitre_attack.sigma.telemetry.logsource_semantics }}</p><pre>{{ results.mitre_attack.sigma.telemetry.normalization | tojson(indent=2) }}</pre>
+<table><tr><th>Matched rule</th><th>ATT&amp;CK candidates</th></tr>{% for rule in results.mitre_attack.sigma.matches %}<tr><td>{{ rule.title }}<br><small>Authors: {{ rule.authors | join("; ") }}</small></td><td>{{ rule.attack_ids | join(', ') }}</td></tr>{% endfor %}</table></section>
+{% include 'sections/capa.html' %}
+</body></html>

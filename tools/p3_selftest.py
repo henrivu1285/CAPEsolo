@@ -556,7 +556,7 @@ def test_shared_product_version_source():
         "shared_version_p32310", ROOT / "lib" / "common" / "frida_version.py"
     )
     assert version_module.PRODUCT_VERSION == PRODUCT_VERSION
-    assert (ROOT / "version.txt").read_text(encoding="utf-8").strip() == "0.5.32-p32317"
+    assert (ROOT / "version.txt").read_text(encoding="utf-8").strip() == version_module.PACKAGE_VERSION
     generic = json.loads(
         (ROOT / "data" / "frida_profiles" / "generic.json").read_text(encoding="utf-8")
     )
@@ -2433,8 +2433,8 @@ def test_sigma_pack_integrity_and_runtime_independence():
     assert pack["source"]["license"] == "DRL-1.1"
     assert pack["source"]["builder"] == "pySigma" and pack["source"]["builder_version"] == "1.5.0"
     assert pack["summary"]["source_files"] == 2410
-    assert pack["summary"]["compiled_rules"] == 1660
-    assert len(pack["rules"]) == len({row["id"] for row in pack["rules"]}) == 1660
+    assert pack["summary"]["compiled_rules"] == 1845
+    assert len(pack["rules"]) == len({row["id"] for row in pack["rules"]}) == 1845
     assert all(len(row["source_sha256"]) == 64 for row in pack["rules"])
     assert all(row.get("authors") for row in pack["rules"])
     assert (ROOT / "data" / "sigma" / "SIGMAHQ_LICENSE").is_file()

@@ -1,4 +1,7 @@
-import itertools
+import configparser
+import json
+import tempfile
+from pathlib import Path
 import logging
 import os
 import subprocess
@@ -186,25 +189,32 @@ class Evtx(Thread, Auxiliary):
         Collect selected evtx files, as specified in self.windows_logs
         """
 
-        logs_folder = None
+        from lib.common.evtx_export import collect_exports
+        # Same result-directory resolution as FridaMuncher; bind artifacts to the run.
+        output_dir = Path(os.environ.get("PUBLIC", r"C:\Users\Public")) / "CAPEsolo" / "analysis"
+        for cfg in (Path.cwd()/"cfg.ini", output_dir.parent/"cfg.ini"):
+            parser = configparser.ConfigParser()
+            if cfg.is_file():
+                parser.read(cfg, encoding="utf-8")
+                value = parser.get("analysis_directory", "analysis", fallback="")
+                if value:
+                    output_dir = Path(value)
+                    break
+        if self.options.get("frida_p3_runtime_report_path"):
+            output_dir = Path(self.options["frida_p3_runtime_report_path"]).parent
         try:
-            logs_folder = "C:/windows/Sysnative/winevt/Logs"
-            os.listdir(logs_folder)
-        except Exception:
-            logs_folder = "C:/Windows/System32/winevt/Logs"
+            marker = json.loads((output_dir/"p3_current_run.json").read_text(encoding="utf-8"))
+            run_id = marker.get("run_id")
+        except (OSError, ValueError):
+            run_id = None
+        with tempfile.TemporaryDirectory(prefix="p3_evtx_bundle_") as temp:
+            archive, manifest, events = collect_exports(self.windows_logs, temp, run_id, self.startupinfo)
+            for source, destination in ((archive, "evtx/evtx.zip"),
+                                        (events, "evtx_events.jsonl"),
+                                        (manifest, "evtx_collection.json")):
+                log.info("Uploading consistent event-log export %s", destination)
+                upload_to_host(str(source), destination)
 
-        with zipfile.ZipFile(self.evtx_dump, "w", zipfile.ZIP_DEFLATED) as zip_obj:
-            for evtx_file_name, selected_evtx in itertools.product(os.listdir(logs_folder), self.windows_logs):
-                _selected_evtx = f"{selected_evtx}.evtx"
-                _selected_evtx = _selected_evtx.replace("/", "%4")
-                if _selected_evtx == evtx_file_name:
-                    full_path = os.path.join(logs_folder, evtx_file_name)
-                    if os.path.exists(full_path):
-                        log.debug("Adding %s to zip dump", full_path)
-                        zip_obj.write(full_path, evtx_file_name)
-
-        log.debug("Uploading %s to host", self.evtx_dump)
-        upload_to_host(self.evtx_dump, f"evtx/{self.evtx_dump}")
 
     def wipe_windows_logs(self):
         """

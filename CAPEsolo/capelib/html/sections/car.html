@@ -1,0 +1,21 @@
+{% set car = attack.car | default({}) %}
+{% if car.available %}
+<div class="card mb-4" id="car-runtime">
+<div class="card-header">Windows CAR runtime · {{ car.commit[:12] }}</div>
+<div class="card-body">
+<p><strong>{{ car.coverage.catalog_analytics }}</strong> analytics in the pinned Windows catalog;
+<strong>{{ car.coverage.runtime_analytics }}</strong> with selected runtime variants.</p>
+<p>CAR matches are candidate or context findings. A match does not prove successful exploitation.
+Native P3, Sigma and CAR can reuse one event; agreement does not create independent evidence or extra score.</p>
+<p>{% for state,count in car.coverage.statuses.items() %}{{ state }}: <strong>{{ count }}</strong>{% if not loop.last %} · {% endif %}{% endfor %}</p>
+{% if car.coverage.truncated_analytics %}<p class="text-warning">Evidence output capped for {{ car.coverage.truncated_analytics | join(', ') }}; analytic counts are preserved.</p>{% endif %}
+<details open><summary>CAR matches and evidence</summary>
+<div class="table-responsive"><table class="table table-dark table-striped"><thead><tr><th>Analytic</th><th>Selected variant</th><th>Candidate ATT&amp;CK</th><th>Evidence</th></tr></thead><tbody>
+{% for hit in car.matches %}<tr><td><a href="{{ hit.source_url }}">{{ hit.car_id }}</a><br>{{ hit.title }}</td><td>{{ hit.variant }}</td><td>{{ hit.attack_ids | join(', ') if hit.attack_ids else 'Context only' }}</td><td>PID {{ hit.evidence.pid }} · {{ hit.evidence.timestamp }} · call {{ hit.evidence.call_id }}<br><small>{{ hit.matched_fields }}</small></td></tr>
+{% else %}<tr><td colspan="4">No retained CAR matches. Check eligibility below; this is not proof of no malicious behavior.</td></tr>{% endfor %}
+</tbody></table></div></details>
+<details><summary>All Windows CAR analytics and eligibility</summary>
+<div class="table-responsive"><table class="table table-dark table-striped"><thead><tr><th>Analytic</th><th>Implementation</th><th>Run state / reason</th><th>Requirements and variant</th></tr></thead><tbody>
+{% for row in car.evaluations %}<tr><td><a href="{{ row.source_url }}">{{ row.id }}</a><br>{{ row.title }}</td><td>{{ row.implementation_status }}</td><td>{{ row.status }}{% if row.reason %}<br>{{ row.reason }}{% endif %}</td><td>{% for v in row.variants %}{{ v.category }}: {{ v.required_fields | join(', ') }}<br>{{ v.variant }}<br>{% if v.missing_fields %}Missing: {{ v.missing_fields | join(', ') }}<br>{% endif %}{% endfor %}</td></tr>{% endfor %}
+</tbody></table></div></details></div></div>
+{% endif %}

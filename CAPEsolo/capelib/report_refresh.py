@@ -28,12 +28,14 @@ def refresh_report_quality(analysis_dir, finalizer):
             from CAPEsolo.capelib.mitre_attack_v12 import AttackMapper
             results["mitre_attack"] = AttackMapper(results, base).build()
             status["detectors_rerun"] = True
-            status["recomputed"] = "native_sigma_mapping_from_immutable_clean"
+            status["recomputed"] = "native_sigma_car_mapping_from_immutable_clean"
         if results.get("capa"):
             from CAPEsolo.capelib.capa_integration import correlate_attack
             results["capa"]["attack_comparison"] = correlate_attack(results)
             atomic_json(base / "capa_analysis.json", results["capa"])
         results["analysis_quality"] = collect_quality(results, base, finalizer)
+        from CAPEsolo.capelib.rule_coverage import attach_rule_coverage
+        attach_rule_coverage(results, base)
         results["threat_assessment"] = assess_threat(results)
         redact_report_in_place(results)
         atomic_json(base / "analysis_quality.json", results["analysis_quality"])

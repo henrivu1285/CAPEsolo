@@ -1490,12 +1490,12 @@ class StartPanel(scrolled.ScrolledPanel):
 
     def _ZipResultsThread(self, dest, mode):
         try:
-            path, _manifest = build_result_archive(self.analysisDir, dest, mode=mode)
-            wx.CallAfter(self._OnZipResultsDone, path, None)
+            path, manifest = build_result_archive(self.analysisDir, dest, mode=mode)
+            wx.CallAfter(self._OnZipResultsDone, path, None, manifest.get("evidence_audit"))
         except Exception as e:
             wx.CallAfter(self._OnZipResultsDone, None, str(e))
 
-    def _OnZipResultsDone(self, path, error):
+    def _OnZipResultsDone(self, path, error, audit=None):
         statusBar = self.GetMainFrame().statusBar
         self.zipResultsBtn.Enable()
         if error is not None:
@@ -1503,6 +1503,14 @@ class StartPanel(scrolled.ScrolledPanel):
             wx.MessageBox(f"Failed to zip results:\n{error}", "Error", wx.OK | wx.ICON_ERROR)
             return
         statusBar.SetMessage(f"Zipped results to {path.name}")
+        if audit and audit.get("status") != "complete":
+            wx.MessageBox(
+                f"Results exported to:\n{path}\n\nSome referenced evidence is missing or inconsistent.\n"
+                + "Missing: " + ", ".join(audit.get("missing_required_files") or [])
+                + "\nHash mismatches: " + ", ".join(audit.get("hash_mismatches") or [])
+                + "\nWait for analysis and capa to finish, then export again. Historical missing files cannot be recovered by export.",
+                "Exported with incomplete evidence", wx.OK | wx.ICON_WARNING)
+            return
         wx.MessageBox(
             f"Analysis results zipped to:\n{path}\n\nTo restore in a clean VM, copy this file to "
             "C:\\Users\\Public\\CAPEsolo\\restore.zip and start CAPEsolo.",

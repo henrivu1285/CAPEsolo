@@ -10,9 +10,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
-PRODUCT_VERSION = "P3.2.3.18"
-PACKAGE_VERSION = "0.5.32-p32318-car1"
-PROCESSOR_REVISION = "p32318-car1"
+PRODUCT_VERSION = "P3.2.3.19"
+PACKAGE_VERSION = "0.5.32-p32319-fix1"
+PROCESSOR_REVISION = "p32319-fix1"
 
 _PRODUCT_RE = re.compile(r"^P\d+(?:\.\d+)+$")
 

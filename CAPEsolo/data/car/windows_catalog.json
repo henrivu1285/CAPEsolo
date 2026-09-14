@@ -1,0 +1,3985 @@
+{
+  "schema": "capesolo-car-windows/1.0",
+  "revision": "p32319",
+  "commit": "1b922fe1527d956e222a99473472e594f10f610b",
+  "source_analytic_count": 102,
+  "windows_analytics": 99,
+  "runtime_analytics": 55,
+  "semantics": "Full Windows catalog. Runtime evaluates selected documented variants, not every upstream implementation.",
+  "analytics": [
+    {
+      "id": "CAR-2013-01-002",
+      "title": "Autorun Differences",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Situational Awareness",
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1037.001",
+        "T1053.005",
+        "T1112",
+        "T1543.003",
+        "T1546.001",
+        "T1546.003",
+        "T1546.008",
+        "T1546.010",
+        "T1547.001",
+        "T1547.004",
+        "T1547.010",
+        "T1574.007",
+        "T1574.008",
+        "T1574.009",
+        "T1574.010",
+        "T1574.011"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-01-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-01-002.yaml",
+      "source_sha256": "6f49a68377df61575ec2937ec14963b5ebd7a3fef87fb43b43b171d23bd8b71a",
+      "source_file": "analytics/CAR-2013-01-002.yaml",
+      "data_model_references": [],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_historical_baseline_or_multi_host_context",
+      "variants": [],
+      "upstream_implementation_count": 0,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-02-003",
+      "title": "Processes Spawning cmd.exe",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1059.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-02-003/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-02-003.yaml",
+      "source_sha256": "9982c3706457d076704f443ed5da2311ab862ce9c6f1e07b092e9bf939ae1c53",
+      "source_file": "analytics/CAR-2013-02-003.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/parent_exe"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "basename",
+            "Image",
+            [
+              "cmd.exe"
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": [
+            "T1059.003"
+          ]
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-02-008",
+      "title": "Simultaneous Logins on a Host",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1078.002",
+        "T1078.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-02-008/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-02-008.yaml",
+      "source_sha256": "3c7a79f6442638077049e2099f8d8fdbb9111af664329af6e01895c0e4f23732",
+      "source_file": "analytics/CAR-2013-02-008.yaml",
+      "data_model_references": [
+        "user_session/login/user",
+        "user_session/login/hostname"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_historical_baseline_or_multi_host_context",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-02-012",
+      "title": "User Logged in to Multiple Hosts",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1078.002",
+        "T1078.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-02-012/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-02-012.yaml",
+      "source_sha256": "6cc1411e1aa30df44713c23c5f63358a6cdc0662131ce599cd0644d721044ec3",
+      "source_file": "analytics/CAR-2013-02-012.yaml",
+      "data_model_references": [],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_historical_baseline_or_multi_host_context",
+      "variants": [],
+      "upstream_implementation_count": 0,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-03-001",
+      "title": "Reg.exe called from Command Shell",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1012",
+        "T1112",
+        "T1547.001",
+        "T1574.011"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-03-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-03-001.yaml",
+      "source_sha256": "b1dd4d81d588a475aedff64669db60a8c324ed6c2002e55c3873760e575277e9",
+      "source_file": "analytics/CAR-2013-03-001.yaml",
+      "data_model_references": [
+        "process/create/command_line",
+        "process/create/hostname",
+        "process/create/exe",
+        "process/create/parent_exe",
+        "process/create/pid",
+        "process/create/ppid"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-04-002",
+      "title": "Quick execution of a series of suspicious commands",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1003.002",
+        "T1007",
+        "T1010",
+        "T1012",
+        "T1016",
+        "T1018",
+        "T1021.002",
+        "T1029",
+        "T1033",
+        "T1046",
+        "T1049",
+        "T1053.002",
+        "T1053.005",
+        "T1057",
+        "T1059.005",
+        "T1069.001",
+        "T1069.002",
+        "T1082",
+        "T1087.001",
+        "T1087.002",
+        "T1098",
+        "T1112",
+        "T1518.001",
+        "T1543.003",
+        "T1562.001",
+        "T1562.006",
+        "T1569.002",
+        "T1574.011"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-04-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-04-002.yaml",
+      "source_sha256": "8f60fd0dde8306ca5242f2f184ddb708cbd5dc0b558196058788667e2968910f",
+      "source_file": "analytics/CAR-2013-04-002.yaml",
+      "data_model_references": [
+        "process/create/hostname",
+        "process/create/ppid",
+        "process/create/exe"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-05-002",
+      "title": "Suspicious Run Locations",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1036"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-05-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-05-002.yaml",
+      "source_sha256": "df7a789a7b288aace1bda7acfc7d077b9f659fa01a3aa5b415f967e5973624e6",
+      "source_file": "analytics/CAR-2013-05-002.yaml",
+      "data_model_references": [
+        "process/create/image_path"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "glob",
+            "Image",
+            [
+              "*:\\recycler\\*",
+              "*:\\systemvolumeinformation\\*",
+              "*:\\system volume information\\*",
+              "c:\\windows\\tasks\\*",
+              "c:\\windows\\debug\\*"
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-05-003",
+      "title": "SMB Write Request",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "Situational Awareness",
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1021.002",
+        "T1078.002",
+        "T1078.003",
+        "T1570"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-05-003/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-05-003.yaml",
+      "source_sha256": "4c5fdd66251f4763ac5b748e3f51a0738da524aff0f1032145aecbe732c46d81",
+      "source_file": "analytics/CAR-2013-05-003.yaml",
+      "data_model_references": [
+        "flow/message/proto_info",
+        "flow/message/dest_port"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_decoded_smb_rpc_and_correlation",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-05-004",
+      "title": "Execution with AT",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1053.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-05-004/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-05-004.yaml",
+      "source_sha256": "87f5725cd01a191b978e671d02c15a58e71523db0fdd32c2570e882684d0ef97",
+      "source_file": "analytics/CAR-2013-05-004.yaml",
+      "data_model_references": [
+        "process/create/command_line",
+        "process/create/exe"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "basename",
+            "Image",
+            [
+              "at.exe"
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 5,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-05-005",
+      "title": "SMB Copy and Execution",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1021.002",
+        "T1078.002",
+        "T1078.003",
+        "T1570"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-05-005/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-05-005.yaml",
+      "source_sha256": "d24ae8726fa3b6344fb626734d8a1ffc22110c70c0666f5c198a562aff7c7837",
+      "source_file": "analytics/CAR-2013-05-005.yaml",
+      "data_model_references": [
+        "process/create/image_path",
+        "process/create/proto_info",
+        "process/create/hostname"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_decoded_smb_rpc_and_correlation",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-05-009",
+      "title": "Running executables with same hash and different names",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1036.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-05-009/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-05-009.yaml",
+      "source_sha256": "e89d69475fa22a1949da2b164ee7a8f3cbae394eaf60fd1bd56e0711aa7a1e5e",
+      "source_file": "analytics/CAR-2013-05-009.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/md5_hash"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 6,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-07-001",
+      "title": "Suspicious Arguments",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1003.001",
+        "T1021",
+        "T1105"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-07-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-07-001.yaml",
+      "source_sha256": "6812c7393545e6a471dc2c8ccbb11ba1b888e8f2a92ce7d39d63ec355367b8b9",
+      "source_file": "analytics/CAR-2013-07-001.yaml",
+      "data_model_references": [
+        "process/create/command_line",
+        "process/create/exe"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 6,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-07-005",
+      "title": "Command Line Usage of Archiving Software",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1560.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-07-005/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-07-005.yaml",
+      "source_sha256": "b914dbff469d06f10353ca10b2c52c6c159b6b3f0682f44de9434a2af99a2c4c",
+      "source_file": "analytics/CAR-2013-07-005.yaml",
+      "data_model_references": [
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "tokens_any",
+            "CommandLine",
+            [
+              "a"
+            ]
+          ],
+          "variant": "upstream archiving-argument monitor; archive creation and intent unproven",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-08-001",
+      "title": "Execution with schtasks",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1053.005"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-08-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-08-001.yaml",
+      "source_sha256": "612b568649058dec580e00dd4567ab3bd14c11ae2d155952d6cbfaf0ed5db54a",
+      "source_file": "analytics/CAR-2013-08-001.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "basename",
+            "Image",
+            [
+              "schtasks.exe"
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-09-005",
+      "title": "Service Outlier Executables",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Detection"
+      ],
+      "attack_ids": [
+        "T1543.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-09-005/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-09-005.yaml",
+      "source_sha256": "0de414c90ebb288e0468d20f617b4fc39f601da0d6761872404a2a2846d33a8f",
+      "source_file": "analytics/CAR-2013-09-005.yaml",
+      "data_model_references": [
+        "process/create/parent_image_path"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_historical_baseline_or_multi_host_context",
+      "variants": [],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-10-001",
+      "title": "User Login Activity Monitoring",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1021.001",
+        "T1078.002",
+        "T1078.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-10-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-10-001.yaml",
+      "source_sha256": "5be76516ab1c8c73672c92eb235f6fd64cb813c4d535cd5106c81d3fde9739e1",
+      "source_file": "analytics/CAR-2013-10-001.yaml",
+      "data_model_references": [],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_historical_baseline_or_multi_host_context",
+      "variants": [],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2013-10-002",
+      "title": "DLL Injection via Load Library",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1055.001",
+        "T1548.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2013-10-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2013-10-002.yaml",
+      "source_sha256": "9c6cf8a6eac2e1105f07b24b6bc52b52f236bd218dbe68234359c2cae13ffb6f",
+      "source_file": "analytics/CAR-2013-10-002.yaml",
+      "data_model_references": [
+        "thread/remote_create/src_pid",
+        "thread/remote_create/start_function"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "create_remote_thread",
+          "condition": [
+            "all",
+            [
+              "equal",
+              "StartFunction",
+              [
+                "LoadLibraryA",
+                "LoadLibraryW"
+              ]
+            ],
+            [
+              "different_pid",
+              "SourceProcessId",
+              "TargetProcessId"
+            ]
+          ],
+          "variant": "LoadLibrary remote-thread variant; analyzed source only, distinct explicit PIDs; no UAC claim",
+          "attack_ids_override": [
+            "T1055.001"
+          ]
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-02-001",
+      "title": "Service Binary Modifications",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Situational Awareness",
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1543.003",
+        "T1569.002",
+        "T1574.010"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-02-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-02-001.yaml",
+      "source_sha256": "4fdcd7382ed9f1de1bfcd303b2fb5bf524f339b81557f550d54446f941ce73c9",
+      "source_file": "analytics/CAR-2014-02-001.yaml",
+      "data_model_references": [
+        "file/create/file_path",
+        "file/create/image_path",
+        "process/create/image_path",
+        "process/create/parent_exe"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-03-001",
+      "title": "SMB Write Request - NamedPipes",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1570"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-03-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-03-001.yaml",
+      "source_sha256": "25f2149409c7af77a9ebf12f3c79e141e813cae8507c7f3cda6008e42ba98713",
+      "source_file": "analytics/CAR-2014-03-001.yaml",
+      "data_model_references": [
+        "flow/message/proto_info",
+        "flow/start/dest_port"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_decoded_smb_rpc_and_correlation",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-03-005",
+      "title": "Remotely Launched Executables via Services",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1543.003",
+        "T1569.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-03-005/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-03-005.yaml",
+      "source_sha256": "9c0fab087c25a02ac31a4de020a80f9b9daaf9c479e564e267e67dfd1d6c1d5b",
+      "source_file": "analytics/CAR-2014-03-005.yaml",
+      "data_model_references": [
+        "flow/start/pid",
+        "process/create/parent_exe",
+        "process/create/pid"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-03-006",
+      "title": "RunDLL32.exe monitoring",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1218.011"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-03-006/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-03-006.yaml",
+      "source_sha256": "41b278ac1f15f0589593b618a61108989e5ce3027ab09113f9e52031baf0eca5",
+      "source_file": "analytics/CAR-2014-03-006.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "basename",
+            "Image",
+            [
+              "rundll32.exe"
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-04-003",
+      "title": "Powershell Execution",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1059.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-04-003/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-04-003.yaml",
+      "source_sha256": "1c704066cd143a1ca7c18c4f8cfbbaa5d58e4df46937047d7d1744e280260ab7",
+      "source_file": "analytics/CAR-2014-04-003.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/parent_exe"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "powershell.exe"
+              ]
+            ],
+            [
+              "not_basename",
+              "ParentImage",
+              [
+                "explorer.exe"
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": [
+            "T1059.001"
+          ]
+        }
+      ],
+      "upstream_implementation_count": 5,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-05-001",
+      "title": "RPC Activity",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP",
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1021.002",
+        "T1021.003",
+        "T1021.006"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-05-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-05-001.yaml",
+      "source_sha256": "53998412a272d211bbbdc422c1ff8cf81e9ac24b81c19c632822bc55177daeb7",
+      "source_file": "analytics/CAR-2014-05-001.yaml",
+      "data_model_references": [
+        "flow/start/dest_port",
+        "flow/start/src_port"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-05-002",
+      "title": "Services launching Cmd",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1543.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-05-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-05-002.yaml",
+      "source_sha256": "5b33fc193bc338704ecb8bfd8da0d657da59bdf688719d6053604a325c38008c",
+      "source_file": "analytics/CAR-2014-05-002.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/parent_exe"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "cmd.exe"
+              ]
+            ],
+            [
+              "basename",
+              "ParentImage",
+              [
+                "services.exe"
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 5,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-07-001",
+      "title": "Service Search Path Interception",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1574.009"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-07-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-07-001.yaml",
+      "source_sha256": "ac2bd66e8ebef74aeca3e0b487be2b367d7ecd103ca2624619c5d13b379c3126",
+      "source_file": "analytics/CAR-2014-07-001.yaml",
+      "data_model_references": [
+        "process/create/command_line",
+        "process/create/image_path",
+        "process/create/parent_exe"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-11-002",
+      "title": "Outlier Parents of Cmd",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Anomaly",
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1059.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-11-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-11-002.yaml",
+      "source_sha256": "6f8a3783ff0b1510099bc77b7e763bb74d503dc0e769a6331eb4df40965c5972",
+      "source_file": "analytics/CAR-2014-11-002.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/parent_exe"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_historical_baseline_or_multi_host_context",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-11-003",
+      "title": "Debuggers for Accessibility Applications",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1546.008"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-11-003/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-11-003.yaml",
+      "source_sha256": "42dbcc21d3df934cb393a8b189df89aaa3879458afdc3623d63ac2949e8c34a1",
+      "source_file": "analytics/CAR-2014-11-003.yaml",
+      "data_model_references": [
+        "process/create/command_line",
+        "process/create/exe"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-11-004",
+      "title": "Remote PowerShell Sessions",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1021.006",
+        "T1059.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-11-004/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-11-004.yaml",
+      "source_sha256": "ea0656f82b3bc232b2d37d128c01a525a99b26e75a81cf99c45b7847697d334a",
+      "source_file": "analytics/CAR-2014-11-004.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/parent_exe"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "wsmprovhost.exe"
+              ]
+            ],
+            [
+              "basename",
+              "ParentImage",
+              [
+                "svchost.exe"
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-11-005",
+      "title": "Remote Registry",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1112"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-11-005/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-11-005.yaml",
+      "source_sha256": "a0b754953cbba1ab582da0f8181fbc8eedd3bf73543049ee03e50bcf990cfbac",
+      "source_file": "analytics/CAR-2014-11-005.yaml",
+      "data_model_references": [
+        "flow/message/dest_port",
+        "flow/message/proto_info"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_decoded_smb_rpc_and_correlation",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-11-006",
+      "title": "Windows Remote Management (WinRM)",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1021.006"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-11-006/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-11-006.yaml",
+      "source_sha256": "456283965b88b35734750ef021645ecabbf70ef468b02a55630892fbcee5fcae",
+      "source_file": "analytics/CAR-2014-11-006.yaml",
+      "data_model_references": [
+        "flow/start/dest_port"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "network_connection",
+          "condition": [
+            "integer",
+            "DestinationPort",
+            [
+              5985,
+              5986
+            ]
+          ],
+          "variant": "port monitor on attributed sample traffic; session/authentication unproven",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-11-007",
+      "title": "Remote Windows Management Instrumentation (WMI) over RPC",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1047"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-11-007/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-11-007.yaml",
+      "source_sha256": "6101c6d284c0c77c14f696fc47d9fbc4e33cbece9d5f40290ec8b96651b6d75b",
+      "source_file": "analytics/CAR-2014-11-007.yaml",
+      "data_model_references": [
+        "flow/message/proto_info"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_decoded_smb_rpc_and_correlation",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-11-008",
+      "title": "Command Launched from WinLogon",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1546.008"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-11-008/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-11-008.yaml",
+      "source_sha256": "c919a03495b6fde47e7a26ed2dab9dc0eefd8d5eb743728ad18cb08ee1dd5d24",
+      "source_file": "analytics/CAR-2014-11-008.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/parent_exe"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "cmd.exe"
+              ]
+            ],
+            [
+              "basename",
+              "ParentImage",
+              [
+                "winlogon.exe"
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2014-12-001",
+      "title": "Remotely Launched Executables via WMI",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1047"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2014-12-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2014-12-001.yaml",
+      "source_sha256": "1c184656d1303b6682a34c97dbb9a09ecb4f562d6747b3c030be2ec3693513a3",
+      "source_file": "analytics/CAR-2014-12-001.yaml",
+      "data_model_references": [
+        "flow/message/dest_port",
+        "flow/message/proto_info",
+        "flow/message/src_port",
+        "process/create/command_line",
+        "process/create/exe",
+        "process/create/parent_exe"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_decoded_smb_rpc_and_correlation",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2015-04-001",
+      "title": "Remotely Scheduled Tasks via AT",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1053.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2015-04-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2015-04-001.yaml",
+      "source_sha256": "cab5c8d0805e4b156fc46ace4746e2e6cd1c773de0ee067cfd2f23ea1984e961",
+      "source_file": "analytics/CAR-2015-04-001.yaml",
+      "data_model_references": [
+        "flow/message/proto_info"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_decoded_smb_rpc_and_correlation",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2015-04-002",
+      "title": "Remotely Scheduled Tasks via Schtasks",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1053.005"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2015-04-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2015-04-002.yaml",
+      "source_sha256": "2118e5d2d68c82a80fee2be6230ff160153af224323038b7013e2d378f705f7b",
+      "source_file": "analytics/CAR-2015-04-002.yaml",
+      "data_model_references": [
+        "flow/message/dest_port",
+        "flow/message/src_port",
+        "flow/message/proto_info"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_decoded_smb_rpc_and_correlation",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2015-07-001",
+      "title": "All Logins Since Last Boot",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [],
+      "url": "https://car.mitre.org/analytics/CAR-2015-07-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2015-07-001.yaml",
+      "source_sha256": "3f420878c201858efc045c2c872a2132e132eb14c28e215ba768d3621cd30974",
+      "source_file": "analytics/CAR-2015-07-001.yaml",
+      "data_model_references": [
+        "user_session/login/user"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_historical_baseline_or_multi_host_context",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2016-03-001",
+      "title": "Host Discovery Commands",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1007",
+        "T1016",
+        "T1033",
+        "T1057",
+        "T1069.001",
+        "T1069.002",
+        "T1082",
+        "T1087.001",
+        "T1087.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2016-03-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2016-03-001.yaml",
+      "source_sha256": "8d6afea34e2e97d625d055a9d6fefbfef7695209f5823adda5ce80db6a5eb306",
+      "source_file": "analytics/CAR-2016-03-001.yaml",
+      "data_model_references": [
+        "process/create/command_line",
+        "process/create/exe"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "any",
+            [
+              "basename",
+              "Image",
+              [
+                "hostname.exe",
+                "ipconfig.exe",
+                "net.exe",
+                "quser.exe",
+                "qwinsta.exe",
+                "systeminfo.exe",
+                "tasklist.exe",
+                "whoami.exe"
+              ]
+            ],
+            [
+              "all",
+              [
+                "basename",
+                "Image",
+                [
+                  "sc.exe"
+                ]
+              ],
+              [
+                "first_arg",
+                "CommandLine",
+                [
+                  "query",
+                  "qc"
+                ]
+              ]
+            ]
+          ],
+          "variant": "command monitor; ATT&CK tags restricted to actual command operation",
+          "attack_ids_override": []
+        }
+      ],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2016-03-002",
+      "title": "Create Remote Process via WMIC",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1047"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2016-03-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2016-03-002.yaml",
+      "source_sha256": "a7ef0025f1de62fd2fed100f09373df889a920589d002cc593b028f8b9fa2cef",
+      "source_file": "analytics/CAR-2016-03-002.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "wmic.exe"
+              ]
+            ],
+            [
+              "all",
+              [
+                "tokens_any",
+                "CommandLine",
+                [
+                  "process"
+                ]
+              ],
+              [
+                "tokens_any",
+                "CommandLine",
+                [
+                  "call"
+                ]
+              ],
+              [
+                "tokens_any",
+                "CommandLine",
+                [
+                  "create"
+                ]
+              ]
+            ],
+            [
+              "regex",
+              "CommandLine",
+              "(?i)(?:^|\\s)/node:\\S+"
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2016-04-002",
+      "title": "User Activity from Clearing Event Logs",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "Anomaly"
+      ],
+      "attack_ids": [
+        "T1070.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2016-04-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2016-04-002.yaml",
+      "source_sha256": "9215c5beda2a6dcdd7da44f1eae03b76a98440dff3480f5d863aa8f89f0738d6",
+      "source_file": "analytics/CAR-2016-04-002.yaml",
+      "data_model_references": [
+        "process/create/command_line"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_windows_security_or_system_log_adapter",
+      "variants": [],
+      "upstream_implementation_count": 5,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2016-04-003",
+      "title": "User Activity from Stopping Windows Defensive Services",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1562.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2016-04-003/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2016-04-003.yaml",
+      "source_sha256": "e99b390b69c3b7f6878d6e534934225c7576cdfa806872a93d059e0cbf62f44a",
+      "source_file": "analytics/CAR-2016-04-003.yaml",
+      "data_model_references": [],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_windows_security_or_system_log_adapter",
+      "variants": [],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2016-04-004",
+      "title": "Successful Local Account Login",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1550.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2016-04-004/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2016-04-004.yaml",
+      "source_sha256": "16d8d9ed2d2f2bb92ae66c9affd0e48557f549eaf22e2ab7565c24c6767c344a",
+      "source_file": "analytics/CAR-2016-04-004.yaml",
+      "data_model_references": [],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_windows_security_or_system_log_adapter",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2016-04-005",
+      "title": "Remote Desktop Logon",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1021.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2016-04-005/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2016-04-005.yaml",
+      "source_sha256": "d1c73e8eb33d8717fa39c742621f752921885a34973b0ecee93f48008f476e02",
+      "source_file": "analytics/CAR-2016-04-005.yaml",
+      "data_model_references": [],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_windows_security_or_system_log_adapter",
+      "variants": [],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2019-04-001",
+      "title": "UAC Bypass",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1548.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2019-04-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2019-04-001.yaml",
+      "source_sha256": "cb9e69b66f7e3e2d0c15e62c84af4796dfdcf6be20fb7c0bed8595864711dbf5",
+      "source_file": "analytics/CAR-2019-04-001.yaml",
+      "data_model_references": [
+        "process/create/image_path",
+        "process/create/parent_image_path",
+        "process/create/integrity_level",
+        "process/create/user",
+        "process/create/parent_command_line"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 5,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2019-04-002",
+      "title": "Generic Regsvr32",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1218.010"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2019-04-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2019-04-002.yaml",
+      "source_sha256": "64250484051e57a3778c1542848007e93d685bb27cf5cc6ef02d1c1c130afe86",
+      "source_file": "analytics/CAR-2019-04-002.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/parent_exe",
+        "process/create/command_line",
+        "process/create/image",
+        "process/create/parent_image"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "ParentImage",
+              [
+                "regsvr32.exe"
+              ]
+            ],
+            [
+              "not_basename",
+              "Image",
+              [
+                "regsvr32.exe"
+              ]
+            ]
+          ],
+          "variant": "spawning-child-process variant only; baseline and unsigned-image variants not implemented",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 7,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2019-04-003",
+      "title": "Squiblydoo",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1218.010"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2019-04-003/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2019-04-003.yaml",
+      "source_sha256": "666d5c5d28ea08da631c73f3075fb56c11d2cc9db1994315dc21e93b6a7b2fcb",
+      "source_file": "analytics/CAR-2019-04-003.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "regsvr32.exe"
+              ]
+            ],
+            [
+              "regex",
+              "CommandLine",
+              "(?i)(?:^|[\\s\\\\])scrobj\\.dll(?:$|[\\s\\\"])"
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2019-04-004",
+      "title": "Credential Dumping via Mimikatz",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1003.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2019-04-004/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2019-04-004.yaml",
+      "source_sha256": "7495ea65430ec1eb6adf9afe6ce61512e41ed3b079724dfa63ede7afd2735f83",
+      "source_file": "analytics/CAR-2019-04-004.yaml",
+      "data_model_references": [],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2019-07-001",
+      "title": "Access Permission Modification",
+      "platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1222.001",
+        "T1222.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2019-07-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2019-07-001.yaml",
+      "source_sha256": "d7d25553f4e3d63cffdd03f81da9cbcf061e0e71805f2f7de46e7c31faa84b98",
+      "source_file": "analytics/CAR-2019-07-001.yaml",
+      "data_model_references": [],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_windows_security_or_system_log_adapter",
+      "variants": [],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2019-07-002",
+      "title": "Lsass Process Dump via Procdump",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1003.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2019-07-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2019-07-002.yaml",
+      "source_sha256": "395181f1e5fae08f00a912aecab5e05330b13db2674a45bfcbbf656385ec1a01",
+      "source_file": "analytics/CAR-2019-07-002.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "Image",
+              [
+                "*\\procdump*.exe"
+              ]
+            ],
+            [
+              "regex",
+              "CommandLine",
+              "(?i)\\blsass(?:\\.exe)?\\b"
+            ]
+          ],
+          "variant": "process-create variant only; process-access variant requires extra fields",
+          "attack_ids_override": [
+            "T1003.001"
+          ]
+        }
+      ],
+      "upstream_implementation_count": 6,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2019-08-001",
+      "title": "Credential Dumping via Windows Task Manager",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1003.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2019-08-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2019-08-001.yaml",
+      "source_sha256": "75c7f7342038155383fb93b2fdda0f0725e176a818c366b304c67fd38fabe096",
+      "source_file": "analytics/CAR-2019-08-001.yaml",
+      "data_model_references": [
+        "file/create/file_name",
+        "file/create/image_path"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "file_event",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "Image",
+              [
+                "c:\\windows\\*\\taskmgr.exe"
+              ]
+            ],
+            [
+              "glob",
+              "TargetFilename",
+              [
+                "*\\lsass*.dmp"
+              ]
+            ]
+          ],
+          "variant": "Task Manager file-create pattern; dump contents unverified",
+          "attack_ids_override": [
+            "T1003.001"
+          ]
+        }
+      ],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2019-08-002",
+      "title": "Active Directory Dumping via NTDSUtil",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1003.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2019-08-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2019-08-002.yaml",
+      "source_sha256": "9ea29be5e7d24714e39e913506ca7e6cd70853bdf668a905d7f6becd9bca7265",
+      "source_file": "analytics/CAR-2019-08-002.yaml",
+      "data_model_references": [
+        "file/create/file_name",
+        "file/create/image_path"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "file_event",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "ntdsutil.exe"
+              ]
+            ],
+            [
+              "basename",
+              "TargetFilename",
+              [
+                "ntds.dit"
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-04-001",
+      "title": "Shadow Copy Deletion",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [],
+      "url": "https://car.mitre.org/analytics/CAR-2020-04-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-04-001.yaml",
+      "source_sha256": "d7c8c4f626cc79f9eb12d36f4272a7c6644a2fa3664f3307d5c6b07fd18bc100",
+      "source_file": "analytics/CAR-2020-04-001.yaml",
+      "data_model_references": [],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 0,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-05-001",
+      "title": "MiniDump of LSASS",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1003.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-05-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-05-001.yaml",
+      "source_sha256": "0cd20a89da9b4de41c5935b759194cb17ee36fc1e605719ac1563d661fcab759",
+      "source_file": "analytics/CAR-2020-05-001.yaml",
+      "data_model_references": [],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-05-003",
+      "title": "Rare LolBAS Command Lines",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1012",
+        "T1112",
+        "T1547.001",
+        "T1574.011"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-05-003/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-05-003.yaml",
+      "source_sha256": "1fe8f70991601fe97854cdb248bcc233e00a39367188038b8119892bb229a373",
+      "source_file": "analytics/CAR-2020-05-003.yaml",
+      "data_model_references": [],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_historical_baseline_or_multi_host_context",
+      "variants": [],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-08-001",
+      "title": "NTFS Alternate Data Stream Execution - System Utilities",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1564.004"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-08-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-08-001.yaml",
+      "source_sha256": "c7ac1e08383ab2a9c3f594c5f39f5db63bd8261557209306231d7f7062d3a13e",
+      "source_file": "analytics/CAR-2020-08-001.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 5,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-08-002",
+      "title": "NTFS Alternate Data Stream Execution - LOLBAS",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1564.004"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-08-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-08-002.yaml",
+      "source_sha256": "9f58656b0253767e9ad0a18b7f56940b935731b2134ae29bd7198e144a1496c4",
+      "source_file": "analytics/CAR-2020-08-002.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 8,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-09-001",
+      "title": "Scheduled Task - FileAccess",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1053.005"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-09-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-09-001.yaml",
+      "source_sha256": "df4f578befa83604726bab384a32c332178f1a07446f0ba1941a868d9ddc6462",
+      "source_file": "analytics/CAR-2020-09-001.yaml",
+      "data_model_references": [
+        "file/create/file_path",
+        "file/create/image_path"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "file_event",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "TargetFilename",
+              [
+                "c:\\windows\\system32\\tasks\\*",
+                "c:\\windows\\tasks\\*"
+              ]
+            ],
+            [
+              "not_equal",
+              "Image",
+              [
+                "c:\\windows\\system32\\svchost.exe"
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-09-002",
+      "title": "Component Object Model Hijacking",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1546.015"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-09-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-09-002.yaml",
+      "source_sha256": "10d7322264d649417de167621b7d8db69cb79f9738e3a7665d3709c14cb8f41f",
+      "source_file": "analytics/CAR-2020-09-002.yaml",
+      "data_model_references": [
+        "registry/add/key",
+        "registry/remove/key",
+        "registry/edit/key"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "registry_event",
+          "condition": [
+            "glob",
+            "TargetObject",
+            [
+              "*\\software\\classes\\clsid\\*"
+            ]
+          ],
+          "variant": "observed registry modification pattern; hijack execution not proven",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-09-003",
+      "title": "Indicator Blocking - Driver Unloaded",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1562.006"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-09-003/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-09-003.yaml",
+      "source_sha256": "3b258851a1f759738659caddc8969edf61381dd88d395449cb62092b77559672",
+      "source_file": "analytics/CAR-2020-09-003.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "fltmc.exe"
+              ]
+            ],
+            [
+              "first_arg",
+              "CommandLine",
+              [
+                "unload"
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-09-004",
+      "title": "Credentials in Files & Registry",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1552.001",
+        "T1552.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-09-004/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-09-004.yaml",
+      "source_sha256": "78e3d0c674cc51eeed0937f410a2b47c09064c16ccee966015e665956e5439ee",
+      "source_file": "analytics/CAR-2020-09-004.yaml",
+      "data_model_references": [
+        "process/create/command_line"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-09-005",
+      "title": "AppInit DLLs",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1546.010"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-09-005/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-09-005.yaml",
+      "source_sha256": "413e8a91b9f5e979154e8bf3b95a1b951355727d9ce5cf3b31e7e1ca1c41e994",
+      "source_file": "analytics/CAR-2020-09-005.yaml",
+      "data_model_references": [
+        "registry/add/key",
+        "registry/remove/key",
+        "registry/edit/key"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "registry_event",
+          "condition": [
+            "regex",
+            "TargetObject",
+            "(?i)\\\\software\\\\(?:wow6432node\\\\)?microsoft\\\\windows nt\\\\currentversion\\\\windows\\\\appinit_dlls(?:\\\\|$)"
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-11-001",
+      "title": "Boot or Logon Initialization Scripts",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1037.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-11-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-11-001.yaml",
+      "source_sha256": "560bb06b423136d4ef201417eeab776818c4eada3164e5f6a1f02a6bdb1c5bd8",
+      "source_file": "analytics/CAR-2020-11-001.yaml",
+      "data_model_references": [
+        "process/create/command_line",
+        "process/create/exe",
+        "registry/add/key",
+        "registry/edit/key"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "registry_set",
+          "condition": [
+            "glob",
+            "TargetObject",
+            [
+              "*\\environment\\userinitmprlogonscript"
+            ]
+          ],
+          "variant": "registry-write variant only",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-11-002",
+      "title": "Local Network Sniffing",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1040"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-11-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-11-002.yaml",
+      "source_sha256": "8c113467d6d0ba4410a7d3ade8c8185f519ae6cc26e385110cb1502ecc5450aa",
+      "source_file": "analytics/CAR-2020-11-002.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/parent_exe"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "any",
+            [
+              "basename",
+              "Image",
+              [
+                "tshark.exe",
+                "windump.exe",
+                "tcpdump.exe",
+                "wprui.exe",
+                "wpr.exe"
+              ]
+            ],
+            [
+              "all",
+              [
+                "basename",
+                "Image",
+                [
+                  "logman.exe"
+                ]
+              ],
+              [
+                "not_equal",
+                "ParentImage",
+                [
+                  "c:\\program files\\windows event reporting\\core\\eventreporting.agentservice.exe"
+                ]
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-11-003",
+      "title": "DLL Injection with Mavinject",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1055.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-11-003/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-11-003.yaml",
+      "source_sha256": "542ecef64aaf5cab626a70927bcdb0d7b371cb781759282286a98696ffb27833",
+      "source_file": "analytics/CAR-2020-11-003.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "mavinject.exe"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "/injectrunning"
+              ]
+            ]
+          ],
+          "variant": "narrowed executable + injectrunning arguments; not arbitrary command text",
+          "attack_ids_override": [
+            "T1055.001"
+          ]
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-11-004",
+      "title": "Processes Started From Irregular Parent",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1055.012"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-11-004/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-11-004.yaml",
+      "source_sha256": "e27b804de19956a666aaefb94a2193550e1e8f35e489e4a2c8ac1ef3732c6a27",
+      "source_file": "analytics/CAR-2020-11-004.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/parent_exe"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "irregular_parent",
+            "Image",
+            "ParentImage"
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-11-005",
+      "title": "Clear Powershell Console Command History",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1070.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-11-005/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-11-005.yaml",
+      "source_sha256": "b1d146f39f2521207158668347d9e4296f657e5fb93a10b6717946a42919e931",
+      "source_file": "analytics/CAR-2020-11-005.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-11-006",
+      "title": "Local Permission Group Discovery",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1069.001",
+        "T1069.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-11-006/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-11-006.yaml",
+      "source_sha256": "cdf62338497d3888f7951066d24d1ccbede9fd680e88caff1fbda300ac138c7f",
+      "source_file": "analytics/CAR-2020-11-006.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "net.exe"
+              ]
+            ],
+            [
+              "first_arg",
+              "CommandLine",
+              [
+                "user",
+                "group",
+                "localgroup"
+              ]
+            ]
+          ],
+          "variant": "net operation monitor; no assertion of malicious intent",
+          "attack_ids_override": []
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-11-007",
+      "title": "Network Share Connection Removal",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1070.005"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-11-007/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-11-007.yaml",
+      "source_sha256": "676f27c1e461e2918b0849fc9e4d233430808179cab3edd86901b4b0e297b27e",
+      "source_file": "analytics/CAR-2020-11-007.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "net.exe"
+              ]
+            ],
+            [
+              "first_arg",
+              "CommandLine",
+              [
+                "use",
+                "share"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "/delete"
+              ]
+            ]
+          ],
+          "variant": "narrowed net share-removal command variant",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-11-008",
+      "title": "MSBuild and msxsl",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1127.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-11-008/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-11-008.yaml",
+      "source_sha256": "caafd6fc4322d1c146eaba5cbbc1c1dbe5c7445b2e9de8a5a1bb15d296bec563",
+      "source_file": "analytics/CAR-2020-11-008.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/image_path"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "glob",
+            "Image",
+            [
+              "c:\\windows\\microsoft.net\\framework*\\msbuild.exe",
+              "c:\\users\\*\\appdata\\roaming\\microsoft\\msxsl.exe"
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-11-009",
+      "title": "Compiled HTML Access",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1218.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-11-009/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-11-009.yaml",
+      "source_sha256": "c212636b499ee65bdc689e3cb3589ec4d1661df12a005d49b04268653e913357",
+      "source_file": "analytics/CAR-2020-11-009.yaml",
+      "data_model_references": [
+        "process/create/exe"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "glob",
+            "Image",
+            [
+              "c:\\windows\\system32\\hh.exe",
+              "c:\\windows\\syswow64\\hh.exe"
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-11-010",
+      "title": "CMSTP",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1218.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-11-010/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-11-010.yaml",
+      "source_sha256": "7d45eac59af07ef1b516ad060cd0b589e2c13a52c77e01afd569f94b35574791",
+      "source_file": "analytics/CAR-2020-11-010.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/src_ip"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2020-11-011",
+      "title": "Registry Edit from Screensaver",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1546.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2020-11-011/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2020-11-011.yaml",
+      "source_sha256": "dc43e1533efc4e2a4db52247a7981e5067fe97033698fda28f192d083a364bf2",
+      "source_file": "analytics/CAR-2020-11-011.yaml",
+      "data_model_references": [
+        "registry/edit/key",
+        "registry/add/key"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "registry_set",
+          "condition": [
+            "glob",
+            "TargetObject",
+            [
+              "*\\software\\policies\\microsoft\\windows\\control panel\\desktop\\scrnsave.exe"
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-01-001",
+      "title": "Identifying Port Scanning Activity",
+      "platforms": [
+        "Windows",
+        "Linux"
+      ],
+      "analytic_types": [
+        "Situational Awareness"
+      ],
+      "attack_ids": [
+        "T1046"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-01-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-01-001.yaml",
+      "source_sha256": "cd1fe99772fd98e63c7e9114238cb4a8588edd5970b44e1a2ed2e2908f970274",
+      "source_file": "analytics/CAR-2021-01-001.yaml",
+      "data_model_references": [
+        "flow/start/dest_ip"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-01-002",
+      "title": "Unusually Long Command Line Strings",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Anomaly"
+      ],
+      "attack_ids": [
+        "T1059"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-01-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-01-002.yaml",
+      "source_sha256": "2df477538deeed0e7027284faa489aae6b26ecec075730395f85a46c70b9ce67",
+      "source_file": "analytics/CAR-2021-01-002.yaml",
+      "data_model_references": [
+        "process/create/command_line"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_historical_baseline_or_multi_host_context",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-01-003",
+      "title": "Clearing Windows Logs with Wevtutil",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1070.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-01-003/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-01-003.yaml",
+      "source_sha256": "edc8f2e6a64a17cb7c39b58e26596aed324a246e5cdb437e82b196fa65920c29",
+      "source_file": "analytics/CAR-2021-01-003.yaml",
+      "data_model_references": [
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "wevtutil.exe"
+              ]
+            ],
+            [
+              "first_arg",
+              "CommandLine",
+              [
+                "cl",
+                "clear-log"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "system",
+                "security",
+                "setup",
+                "application"
+              ]
+            ]
+          ],
+          "variant": "process command variant; successful log deletion requires event confirmation",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-01-004",
+      "title": "Unusual Child Process for Spoolsv.Exe or Connhost.Exe",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "Anomaly"
+      ],
+      "attack_ids": [
+        "T1068"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-01-004/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-01-004.yaml",
+      "source_sha256": "c78d7349e5b369382ef39777e56aac1b248bff2d279dd3837468a335a3135a21",
+      "source_file": "analytics/CAR-2021-01-004.yaml",
+      "data_model_references": [
+        "process/create/command_line"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 1,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-01-006",
+      "title": "Unusual Child Process spawned using DDE exploit",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1559.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-01-006/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-01-006.yaml",
+      "source_sha256": "30c758f213869e182db09e518bace651d64672de3c2f8fc376cd43907ba3bb0f",
+      "source_file": "analytics/CAR-2021-01-006.yaml",
+      "data_model_references": [
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "ParentImage",
+              [
+                "excel.exe",
+                "word.exe",
+                "winword.exe",
+                "outlook.exe"
+              ]
+            ],
+            [
+              "glob",
+              "Image",
+              [
+                "*.exe"
+              ]
+            ]
+          ],
+          "variant": "broad Office-child monitor; DDE exploitation not established",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-01-007",
+      "title": "Detecting Tampering of Windows Defender Command Prompt",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1562.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-01-007/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-01-007.yaml",
+      "source_sha256": "cd727c2e0a9cf0c471746cb0e98db2831fc9f7ee672fe4093746c29d105d893e",
+      "source_file": "analytics/CAR-2021-01-007.yaml",
+      "data_model_references": [
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "Image",
+              [
+                "c:\\windows\\system32\\sc.exe"
+              ]
+            ],
+            [
+              "first_arg",
+              "CommandLine",
+              [
+                "config",
+                "stop",
+                "query"
+              ]
+            ]
+          ],
+          "variant": "upstream sc monitor includes query; tampering not established",
+          "attack_ids_override": []
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-01-008",
+      "title": "Disable UAC",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1548.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-01-008/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-01-008.yaml",
+      "source_sha256": "1ff93947e3d7648afb740f13a253a05cc48cee370146a06d89e47728533f5b7e",
+      "source_file": "analytics/CAR-2021-01-008.yaml",
+      "data_model_references": [
+        "process/create/image_path",
+        "process/create/command_line"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "implementation_pending_semantic_review",
+      "variants": [],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-01-009",
+      "title": "Detecting Shadow Copy Deletion or Resize",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1490"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-01-009/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-01-009.yaml",
+      "source_sha256": "7e51ffe242c218e546ba039304edeeb1ce32b22e9003ae57d63ac0be0dd686e3",
+      "source_file": "analytics/CAR-2021-01-009.yaml",
+      "data_model_references": [
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "any",
+            [
+              "all",
+              [
+                "basename",
+                "Image",
+                [
+                  "vssadmin.exe"
+                ]
+              ],
+              [
+                "any",
+                [
+                  "all",
+                  [
+                    "tokens_any",
+                    "CommandLine",
+                    [
+                      "delete"
+                    ]
+                  ],
+                  [
+                    "tokens_any",
+                    "CommandLine",
+                    [
+                      "shadows"
+                    ]
+                  ]
+                ],
+                [
+                  "all",
+                  [
+                    "tokens_any",
+                    "CommandLine",
+                    [
+                      "resize"
+                    ]
+                  ],
+                  [
+                    "tokens_any",
+                    "CommandLine",
+                    [
+                      "shadowstorage"
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "all",
+              [
+                "basename",
+                "Image",
+                [
+                  "wmic.exe"
+                ]
+              ],
+              [
+                "all",
+                [
+                  "tokens_any",
+                  "CommandLine",
+                  [
+                    "shadowcopy"
+                  ]
+                ],
+                [
+                  "tokens_any",
+                  "CommandLine",
+                  [
+                    "delete"
+                  ]
+                ]
+              ]
+            ]
+          ],
+          "variant": "process-command variant only; WMI event variants not implemented",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-02-001",
+      "title": "Webshell-Indicative Process Tree",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1505.003"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-02-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-02-001.yaml",
+      "source_sha256": "b8890cb837af20fdeeb8a0fa0a235807bfe0f1d3e00c59391842281d8bca1094",
+      "source_file": "analytics/CAR-2021-02-001.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/parent_exe"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename_glob",
+              "ParentImage",
+              [
+                "w3wp.exe",
+                "httpd.exe",
+                "tomcat*.exe",
+                "nginx.exe"
+              ]
+            ],
+            [
+              "basename",
+              "Image",
+              [
+                "cmd.exe",
+                "powershell.exe",
+                "net.exe",
+                "whoami.exe",
+                "hostname.exe",
+                "systeminfo.exe",
+                "ipconfig.exe"
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-02-002",
+      "title": "Get System Elevation",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1548"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-02-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-02-002.yaml",
+      "source_sha256": "731b8d25f99d94ed43a3f30cbb86f94d4dba284868b15b9f7c3646e50f6f0975",
+      "source_file": "analytics/CAR-2021-02-002.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/parent_exe",
+        "process/create/command_line",
+        "service/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "ParentImage",
+              [
+                "services.exe"
+              ]
+            ],
+            [
+              "basename",
+              "Image",
+              [
+                "cmd.exe"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "echo"
+              ]
+            ],
+            [
+              "regex",
+              "CommandLine",
+              "(?i)\\\\pipe\\\\"
+            ]
+          ],
+          "variant": "service-child echo-to-pipe variant only; elevation success unproven",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-04-001",
+      "title": "Common Windows Process Masquerading",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1036.005"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-04-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-04-001.yaml",
+      "source_sha256": "7cc9dddccf3265d76b324130eda9bec2d2baf6c32f8e9620e24d04d0b3c94bbd",
+      "source_file": "analytics/CAR-2021-04-001.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/image_path",
+        "process/access/exe",
+        "process/access/image_path",
+        "process/terminate/exe",
+        "process/terminate/image_path"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "masquerade_system_path",
+            "Image",
+            true
+          ],
+          "variant": "corrected upstream OR/typo; both legitimate System32 and SysWOW64 paths excluded",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-05-001",
+      "title": "Attempt To Add Certificate To Untrusted Store",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1553.004"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-05-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-05-001.yaml",
+      "source_sha256": "ebd97e032e410b7740d6ea7a80e893cfc854f64245a36e0423a784271c31d0e0",
+      "source_file": "analytics/CAR-2021-05-001.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "Image",
+              [
+                "c:\\windows\\system32\\certutil.exe"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "-addstore"
+              ]
+            ]
+          ],
+          "variant": "certificate-store command monitor; trust change unproven",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-05-002",
+      "title": "Batch File Write to System32",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1204.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-05-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-05-002.yaml",
+      "source_sha256": "2db730b5c489f2ea15d715a5fc01b01388c9966551e6858d6e702861a6d379a9",
+      "source_file": "analytics/CAR-2021-05-002.yaml",
+      "data_model_references": [
+        "file/create/extension",
+        "file/create/file_path"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "file_event",
+          "condition": [
+            "glob",
+            "TargetFilename",
+            [
+              "c:\\windows\\system32\\*.bat"
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-05-003",
+      "title": "BCDEdit Failure Recovery Modification",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1490"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-05-003/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-05-003.yaml",
+      "source_sha256": "18b2b2266fb25ee33a7eba92a8f6ad1cdb23ee93667430d385f2172e9a8bed13",
+      "source_file": "analytics/CAR-2021-05-003.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "Image",
+              [
+                "c:\\windows\\system32\\bcdedit.exe"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "recoveryenabled"
+              ]
+            ]
+          ],
+          "variant": "upstream recovery configuration monitor; enable and disable need analyst interpretation",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-05-004",
+      "title": "BITS Job Persistence",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1197"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-05-004/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-05-004.yaml",
+      "source_sha256": "ab65d8dc470c5d44eb2e8e0d3e1fd681bf898d8e66641e2bed945e7259a9edcb",
+      "source_file": "analytics/CAR-2021-05-004.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "Image",
+              [
+                "c:\\windows\\system32\\bitsadmin.exe"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "/create",
+                "/addfile",
+                "/setnotifyflags",
+                "/setnotifycmdline",
+                "/setminretrydelay",
+                "/setcustomheaders",
+                "/resume"
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-05-005",
+      "title": "BITSAdmin Download File",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1105",
+        "T1197"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-05-005/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-05-005.yaml",
+      "source_sha256": "86a87131a3ad3b34ebae768358da60607636601894169972856c738447ff2590",
+      "source_file": "analytics/CAR-2021-05-005.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "Image",
+              [
+                "c:\\windows\\system32\\bitsadmin.exe"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "/transfer"
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-05-006",
+      "title": "CertUtil Download With URLCache and Split Arguments",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1105"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-05-006/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-05-006.yaml",
+      "source_sha256": "93db5b77e9a9e130bf477d89e461623e668120767e792fc4bf220e19211bc177",
+      "source_file": "analytics/CAR-2021-05-006.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "Image",
+              [
+                "c:\\windows\\system32\\certutil.exe"
+              ]
+            ],
+            [
+              "all",
+              [
+                "tokens_any",
+                "CommandLine",
+                [
+                  "-urlcache"
+                ]
+              ],
+              [
+                "tokens_any",
+                "CommandLine",
+                [
+                  "-split"
+                ]
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-05-007",
+      "title": "CertUtil Download With VerifyCtl and Split Arguments",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1105"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-05-007/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-05-007.yaml",
+      "source_sha256": "53540042d40ebbef25fcc46e9d964cfd247b1888e7dcff59a4ea0b65b5133949",
+      "source_file": "analytics/CAR-2021-05-007.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "Image",
+              [
+                "c:\\windows\\system32\\certutil.exe"
+              ]
+            ],
+            [
+              "all",
+              [
+                "tokens_any",
+                "CommandLine",
+                [
+                  "-verifyctl"
+                ]
+              ],
+              [
+                "tokens_any",
+                "CommandLine",
+                [
+                  "-split"
+                ]
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-05-008",
+      "title": "Certutil exe certificate extraction",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1606.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-05-008/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-05-008.yaml",
+      "source_sha256": "c966228265f629eb07944b23f1dd26da86b2652209c71729ef39bb2abd9bfecf",
+      "source_file": "analytics/CAR-2021-05-008.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "Image",
+              [
+                "c:\\windows\\system32\\certutil.exe"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "-exportpfx"
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-05-009",
+      "title": "CertUtil With Decode Argument",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1140"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-05-009/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-05-009.yaml",
+      "source_sha256": "721e9f50b5035bbb36ee4e234532d91e450fe63b57c48af596349e4a199469dc",
+      "source_file": "analytics/CAR-2021-05-009.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "Image",
+              [
+                "c:\\windows\\system32\\certutil.exe"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "-decode",
+                "-decodehex"
+              ]
+            ]
+          ],
+          "variant": "selected upstream process/event pattern",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-05-010",
+      "title": "Create local admin accounts using net exe",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1136.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-05-010/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-05-010.yaml",
+      "source_sha256": "c4a5f698bb9c4b8dcd3e3e640b6bca848d107a1256ccb305f85cd705aab4dacd",
+      "source_file": "analytics/CAR-2021-05-010.yaml",
+      "data_model_references": [
+        "process/create/exe",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "net.exe",
+                "net1.exe"
+              ]
+            ],
+            [
+              "first_arg",
+              "CommandLine",
+              [
+                "user",
+                "localgroup"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "/add"
+              ]
+            ]
+          ],
+          "variant": "narrowed add-operation variant; local administrator membership not inferred from user creation",
+          "attack_ids_override": []
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-05-011",
+      "title": "Create Remote Thread into LSASS",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1003.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-05-011/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-05-011.yaml",
+      "source_sha256": "d96f33e341c32497a354a2db9bab37d4594511ac1961c40be54b963afbbc5418",
+      "source_file": "analytics/CAR-2021-05-011.yaml",
+      "data_model_references": [
+        "thread/remote_create"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "create_remote_thread",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "TargetImage",
+              [
+                "lsass.exe"
+              ]
+            ],
+            [
+              "different_pid",
+              "SourceProcessId",
+              "TargetProcessId"
+            ]
+          ],
+          "variant": "target-bound remote thread; dump content and credential theft unproven",
+          "attack_ids_override": [
+            "T1055"
+          ]
+        }
+      ],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-05-012",
+      "title": "Create Service In Suspicious File Path",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1569.001",
+        "T1569.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-05-012/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-05-012.yaml",
+      "source_sha256": "471fc345434c6183c768d5a90f2941fe45d5ba29c79905ffff3fec6c7a0bd608",
+      "source_file": "analytics/CAR-2021-05-012.yaml",
+      "data_model_references": [
+        "service/create/image_path"
+      ],
+      "implementation_status": "not_implemented",
+      "deferred_reason": "requires_windows_security_or_system_log_adapter",
+      "variants": [],
+      "upstream_implementation_count": 2,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-11-001",
+      "title": "Registry Edit with Creation of SafeDllSearchMode Key Set to 0",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1112",
+        "T1574.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-11-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-11-001.yaml",
+      "source_sha256": "4468ebe7706120d9d86520574b4e1348d888324d9bc55b4d45a02a71fb6ecbea",
+      "source_file": "analytics/CAR-2021-11-001.yaml",
+      "data_model_references": [
+        "process/create/command_line",
+        "registry/add/key"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "registry_set",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "TargetObject",
+              [
+                "*\\system\\currentcontrolset\\control\\session manager\\safedllsearchmode",
+                "*\\system\\controlset00?\\control\\session manager\\safedllsearchmode"
+              ]
+            ],
+            [
+              "dword",
+              "Details",
+              [
+                0
+              ]
+            ]
+          ],
+          "variant": "registry value variant only",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-11-002",
+      "title": "Registry Edit with Modification of Userinit, Shell or Notify",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1112",
+        "T1547.004"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-11-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-11-002.yaml",
+      "source_sha256": "cb4cb1596ac4515ac437771d5700dde4eaedde2579cc7b1bfe766b7575ba7de5",
+      "source_file": "analytics/CAR-2021-11-002.yaml",
+      "data_model_references": [
+        "process/create/command_line",
+        "registry/add/key"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "registry_set",
+          "condition": [
+            "glob",
+            "TargetObject",
+            [
+              "*\\microsoft\\windows nt\\currentversion\\winlogon\\userinit",
+              "*\\microsoft\\windows nt\\currentversion\\winlogon\\shell",
+              "*\\microsoft\\windows nt\\currentversion\\winlogon\\notify*"
+            ]
+          ],
+          "variant": "registry value variant with Winlogon path boundary",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-12-001",
+      "title": "Scheduled Task Creation or Modification Containing Suspicious Scripts, Extensions or User Writable Paths",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1053.005"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-12-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-12-001.yaml",
+      "source_sha256": "1f66dd4dd782f68f08d7def8f86b81ce9d40cd9c79069f0318f75f3868ac51b1",
+      "source_file": "analytics/CAR-2021-12-001.yaml",
+      "data_model_references": [
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "process_creation",
+          "condition": [
+            "all",
+            [
+              "basename",
+              "Image",
+              [
+                "schtasks.exe"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "/create",
+                "/change"
+              ]
+            ],
+            [
+              "tokens_any",
+              "CommandLine",
+              [
+                "/tr"
+              ]
+            ],
+            [
+              "regex",
+              "CommandLine",
+              "(?i)\\.(?:cmd|ps1|vbs|py|js|exe|bat)\\b"
+            ]
+          ],
+          "variant": "task command variant for executable/script extensions; successful registration unproven",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2021-12-002",
+      "title": "Modification of Default Startup Folder in the Registry Key 'Common Startup'",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1112",
+        "T1547.001"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2021-12-002/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2021-12-002.yaml",
+      "source_sha256": "8aedae9d2d697aaa244e0c82c288ae8f7afbcad35c13e44f302576c7560b2940",
+      "source_file": "analytics/CAR-2021-12-002.yaml",
+      "data_model_references": [
+        "process/create/command_line",
+        "registry/add/key"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "registry_set",
+          "condition": [
+            "glob",
+            "TargetObject",
+            [
+              "*\\microsoft\\windows\\currentversion\\explorer\\user shell folders\\common startup",
+              "*\\microsoft\\windows\\currentversion\\explorer\\shell folders\\common startup"
+            ]
+          ],
+          "variant": "registry value variant with Startup-folder key boundary",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 4,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    },
+    {
+      "id": "CAR-2022-03-001",
+      "title": "Disable Windows Event Logging",
+      "platforms": [
+        "Windows"
+      ],
+      "analytic_types": [
+        "TTP"
+      ],
+      "attack_ids": [
+        "T1562.002"
+      ],
+      "url": "https://car.mitre.org/analytics/CAR-2022-03-001/",
+      "source_url": "https://github.com/mitre-attack/car/blob/1b922fe1527d956e222a99473472e594f10f610b/analytics/CAR-2022-03-001.yaml",
+      "source_sha256": "4fac5bdbf742b73309255f29843bb580b748eb7d668aa5b9c7915bb3994e17ec",
+      "source_file": "analytics/CAR-2022-03-001.yaml",
+      "data_model_references": [
+        "registry/value_edit/value",
+        "process/create/command_line"
+      ],
+      "implementation_status": "implemented_selected_variants",
+      "deferred_reason": null,
+      "variants": [
+        {
+          "category": "registry_set",
+          "condition": [
+            "all",
+            [
+              "glob",
+              "TargetObject",
+              [
+                "*\\system\\currentcontrolset\\services\\eventlog\\start",
+                "*\\system\\controlset00?\\services\\eventlog\\start"
+              ]
+            ],
+            [
+              "dword",
+              "Details",
+              [
+                4
+              ]
+            ]
+          ],
+          "variant": "registry disable-start variant only; remaining command variants deferred",
+          "attack_ids_override": null
+        }
+      ],
+      "upstream_implementation_count": 3,
+      "validation_scope": "See tests/p32319 and validation/P32319_VALIDATION.json; catalog presence is not validation."
+    }
+  ]
+}

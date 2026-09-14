@@ -230,6 +230,11 @@ def GetResults(targetFile, analysisDir, writeFile=True, includeStrings=True, pca
     # js_log and network are built before the signatures, which read both: 14 of the shipped
     # network signatures look up results["network"], and previously js_log was populated
     # after they had already run.
+    from CAPEsolo.capelib.service_processes import attach_service_processes
+    try:
+        attach_service_processes(results, analysisDir)
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        log.warning("Service process correlation unavailable: %s", exc)
     results["js_log"] = JsLog(analysisDir)
     results["network"] = Network(analysisDir, results, pcapPath)
     results["signatures"] = Signatures(results, analysisDir)

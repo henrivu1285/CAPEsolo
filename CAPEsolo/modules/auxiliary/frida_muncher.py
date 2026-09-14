@@ -178,6 +178,8 @@ class FridaMuncher(Auxiliary):
         self.sysmon_event_counts = {}
         # EID3/EID22 are retained separately from the bounded P3 controller
         # ledger. They are wire-correlation evidence, not Frida hook events.
+        self.sysmon_process_events = []
+        self.sysmon_process_events_dropped = 0
         self.sysmon_network_events = []
         self.sysmon_network_events_dropped = 0
         self.sysmon_network_event_limit = 20000
@@ -1249,6 +1251,8 @@ class FridaMuncher(Auxiliary):
                 "bridge_ever_active": bool(self.sysmon_ever_active),
                 "events_seen": self.sysmon_events_seen,
                 "by_id": dict(sorted(self.sysmon_event_counts.items())),
+                "process_events": self._p3_json_safe(getattr(self, "sysmon_process_events", [])),
+                "process_events_dropped": getattr(self, "sysmon_process_events_dropped", 0),
                 "network_events": self._p3_json_safe(self.sysmon_network_events),
                 "network_events_dropped": int(self.sysmon_network_events_dropped),
                 "final_drain": self._p3_json_safe(self.sysmon_final_drain),
@@ -4152,13 +4156,24 @@ class FridaMuncher(Auxiliary):
         # During finalization, retain the wire-correlation tail even though new
         # process enrollment is no longer allowed.  Sysmon can deliver EID3/22
         # slightly after the corresponding PCAP packet has been captured.
-        if self.stop_event.is_set() and event_id not in (3, 5, 22):
+        if self.stop_event.is_set() and event_id not in (1, 3, 5, 22):
             return
         self.sysmon_events_seen += 1
         self.sysmon_event_counts[event_id] = self.sysmon_event_counts.get(event_id, 0) + 1
 
+        if event_id in (1, 5):
+            # Keep SCM-launched processes even when they are outside the root PID tree.
+            # This is evidence retention only; late events must not trigger new attach.
+            with self.session_lock:
+                if not hasattr(self, "sysmon_process_events"):
+                    self.sysmon_process_events = []
+                if len(self.sysmon_process_events) < 10000:
+                    self.sysmon_process_events.append(dict(event))
+                else:
+                    self.sysmon_process_events_dropped = getattr(self, "sysmon_process_events_dropped", 0) + 1
         if event_id == 1:
-            self._handle_sysmon_process_create(event)
+            if not self.stop_event.is_set():
+                self._handle_sysmon_process_create(event)
         elif event_id == 3:
             self._handle_sysmon_network_connect(event)
         elif event_id == 5:

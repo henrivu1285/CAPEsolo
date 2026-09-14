@@ -237,12 +237,50 @@ def extract_behavior_chains_from_records(
     for key, value, reg_record in run_writes:
         target = _norm_path(value)
         registry_script = str(value).lstrip().startswith("#@~^") or ("javascript:" in str(value).lower() and "regread(" in str(value).lower())
-        def related(r):
+        def lineage(r):
+            """Link successful creation records, never join unrelated same-path PIDs.
+
+            All rows come from this analysis' canonical snapshot. Explicit run
+            IDs, when supplied, must agree. Conflicting child identities reject
+            an edge (PID reuse); duplicate API wrappers for one edge are allowed.
+            """
             first = parse_timestamp(r.get("timestamp") or _call(r).get("timestamp"))
             last = parse_timestamp(reg_record.get("timestamp") or _call(reg_record).get("timestamp"))
-            return str(r.get("pid")) == str(reg_record.get("pid")) and first is not None and last is not None and 0 <= last - first <= 600
-        file_match = next((r for path, r in reversed(file_events) if target and path == target and related(r)), None)
-        proc_match = next((r for path, _, r in reversed(proc_events) if target and path == target and related(r)), None)
+            if first is None or last is None or not 0 <= last - first <= 600:
+                return None
+            if r.get("run_id") and reg_record.get("run_id") and r["run_id"] != reg_record["run_id"]:
+                return None
+            source = ns.integer(r.get("pid")); child = ns.integer(reg_record.get("pid"))
+            if not source or not child:
+                return None
+            links = []; visited = set(); boundary = last
+            while child != source:
+                if child in visited or len(links) >= 8:
+                    return None
+                visited.add(child)
+                candidates = []
+                for image, new_pid, create in proc_events:
+                    time = parse_timestamp(create.get("timestamp") or _call(create).get("timestamp"))
+                    parent = ns.integer(create.get("pid"))
+                    if new_pid != child or not parent or parent == child or time is None or not first <= time <= boundary:
+                        continue
+                    if reg_record.get("run_id") and create.get("run_id") and create["run_id"] != reg_record["run_id"]:
+                        continue
+                    candidates.append((parent, image, time, create))
+                identities = {(parent, image) for parent, image, _, _ in candidates}
+                if len(identities) != 1:
+                    return None
+                parent, image, time, create = min(candidates, key=lambda item: item[2])
+                actual_paths = {_norm_path(row.get("process_path")) for row in by_pid.get(child, []) if row.get("process_path")}
+                if actual_paths and actual_paths != {image}:
+                    return None
+                links.append({"parent_pid": parent, "child_pid": child, "child_path": image,
+                              "evidence": _record_ref(create)})
+                child, boundary = parent, time
+            return links
+
+        file_match = next((r for path, r in reversed(file_events) if target and path == target and lineage(r) is not None), None)
+        proc_match = next((r for path, _, r in reversed(proc_events) if target and path == target and lineage(r) is not None), None)
         steps = []
         if file_match:
             steps.append({"kind": "file_materialized", "path": value, "evidence": _record_ref(file_match)})
@@ -261,6 +299,8 @@ def extract_behavior_chains_from_records(
             "target_kind": "registry_resident_script" if registry_script else "path_or_command",
             "materialization_applicable": not registry_script,
             "materialization_observed": bool(file_match),
+            "lineage_links": lineage(file_match) if file_match else [],
+            "correlation_policy": "same_process_or_verified_ancestor; successful calls; exact target; ordered within 600s",
             "missing_steps": [] if file_match or registry_script else ["file_materialized"],
             "preexisting_target_possible": not bool(file_match) and not registry_script,
             "mitre_candidate": "T1547.001",

@@ -12,6 +12,7 @@
 <p>Unpacking evidence: <strong>{{ quality.unpacking_evidence.status }}</strong> · Eligible unpacked PE files: {{ quality.unpacking_evidence.eligible_payloads }} · Contributes unpacking score: {{ quality.unpacking_evidence.scoreable }}.</p>
 <details><summary>Unpacking evidence limits</summary><ul>{% for reason,count in quality.unpacking_evidence.reasons.items() %}<li>{{ reason }}: {{ count }}</li>{% endfor %}</ul><p>{{ quality.unpacking_evidence.interpretation }}</p></details>
 {% endif %}
+{% if quality.network and quality.network.capture_errors %}<p class="text-warning">Capture: {{ quality.network.capture_status }} · {{ quality.network.capture_errors | join("; ") }}</p>{% endif %}
 {% if quality.disabled_hooks %}<p class="text-warning">Rate-capped hooks: {{ quality.disabled_hooks | join(', ') }}</p>{% endif %}
 {% if quality.background_rate_caps %}<p>{{ quality.background_rate_caps | length }} background-process rate-cap events are listed separately and do not reduce tracked-process API counts.</p>{% endif %}
 {% if quality.limitations %}<ul>{% for limitation in quality.limitations %}<li>{{ limitation }}</li>{% endfor %}</ul>{% endif %}

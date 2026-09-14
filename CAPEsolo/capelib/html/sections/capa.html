@@ -3,6 +3,7 @@
 <section class="mt-4 mb-4" id="capa-results">
   <h3>capa capabilities</h3>
   <p>Status: <strong>{{ capa.status }}</strong> · Engine: {{ capa.engine_version or capa.expected_engine_version }} · Rules: {{ capa.rules.tag if capa.rules else 'unavailable' }}</p>
+  {% if capa.rules %}<p>{{ capa.rules.rule_files }} rule files in pack; pinned identity: {{ capa.rules.pinned_pack }}. File count is not the number of rules evaluable in each mode.</p>{% endif %}
   {% if capa.reason %}<div class="alert alert-warning">{{ capa.reason }}</div>{% endif %}
   <p>Dynamic matches are review candidates. Static matches describe capabilities in a file; they do not prove execution. capa contributes no threat-score points.</p>
   <h4>Dynamic · {{ capa.dynamic.status }}</h4>
