@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION
-from CAPEsolo.capelib.evidence_snapshot import REVISION, validate_snapshot
+from CAPEsolo.lib.common.frida_version import PRODUCT_VERSION, PROCESSOR_REVISION as REVISION
+from CAPEsolo.capelib.evidence_snapshot import validate_snapshot
 
 
 def read_json(path):
@@ -63,10 +63,23 @@ def collect_quality(results, analysis_dir, finalizer=None):
     if service.get("links") or service.get("unresolved_services") or service.get("status") in {"partial", "failed"}:
         limitations.extend(service.get("limitations", []))
         axes["service_process_coverage"] = "partial" if service.get("status") in {"partial", "failed"} else "complete"
-    if service.get("evtx_status") in {"partial", "invalid"}:
+    if service.get("evtx_status") in {"partial", "invalid"} or (service.get("evtx_status") == "unavailable" and service.get("evtx_expected")):
         axes["evtx_export"] = "degraded"
         limitations.append("evtx_export_"+service["evtx_status"])
 
+    tracking = runtime.get("service_tracking") or {}
+    if tracking.get("enabled"):
+        axes["service_realtime"] = "active" if tracking.get("security_ever_active") else "degraded"
+        if not tracking.get("security_ever_active"):
+            limitations.append("service_realtime_security_unavailable")
+        if tracking.get("events_dropped"):
+            axes["service_realtime"] = "partial"
+            limitations.append("service_realtime_events_dropped")
+        if any(v.get("error") for v in (tracking.get("subscriptions") or {}).values() if isinstance(v, dict)):
+            axes["service_realtime"] = "partial"
+            limitations.append("service_realtime_subscription_error")
+        if any(m.get("capemon_request") in {"failed", "unknown", "identity_mismatch"} for m in (runtime.get("lineage") or {}).values() if isinstance(m, dict)):
+            limitations.append("related_process_monitor_not_confirmed")
     harmful_hooks = hooks - set(api.get("framework_only_rate_caps") or [])
     if harmful_hooks or (not hooks and api.get("api_rate_cap_detected") and not background):
         limitations.append("api_rate_capped_counts_are_lower_bounds")

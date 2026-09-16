@@ -133,7 +133,7 @@ def netlog_sanitize_fname(path):
     if b"aux" in dir_part:
         dir_part = dir_part.replace(b"aux", b"aux_")
         path = path.replace(b"aux", b"aux_")
-    if dir_part not in RESULT_DIRECTORIES:
+    if dir_part not in RESULT_DIRECTORIES and path not in (b"evtx_events.jsonl", b"evtx_collection.json"):
         log.error(f"Netlog client requested banned path: {path}")
         raise Disconnect
     if any(c in BANNED_PATH_CHARS for c in name):

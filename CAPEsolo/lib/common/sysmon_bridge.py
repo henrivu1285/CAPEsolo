@@ -48,6 +48,7 @@ def parse_sysmon_event_xml(xml_text):
         "utc_time": "",
         "provider": "",
         "computer": sys_text("Computer"),
+        "channel": sys_text("Channel"),
         "data": {},
     }
 

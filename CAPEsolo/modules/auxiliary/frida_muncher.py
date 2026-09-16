@@ -13,6 +13,7 @@ import frida
 import psutil
 
 from lib.common.abstracts import Auxiliary
+from lib.common.service_runtime import ServiceTrackingMixin
 from lib.common.frida_version import PRODUCT_VERSION
 from lib.common.frida_attach_diagnostics import classify_attach_failure
 from lib.common.validation_scope import matches_validation_script
@@ -52,7 +53,7 @@ except Exception:
 log = logging.getLogger(__name__)
 
 
-class FridaMuncher(Auxiliary):
+class FridaMuncher(ServiceTrackingMixin, Auxiliary):
     """
     CAPEsolo + Frida P3.2.3.14 lifecycle/provenance controller, built on the validated P2/P2.1 Hybrid core.
 
@@ -114,6 +115,7 @@ class FridaMuncher(Auxiliary):
         self.lineage = {}
         self.pending_identities = set()
         self.session_lock = threading.RLock()
+        self._init_service_tracking()
 
         self.target_pid = None
         self.worker = None
@@ -1261,6 +1263,7 @@ class FridaMuncher(Auxiliary):
             "frida_sessions_at_stop": int(session_count),
             "excluded_descendants": excluded_summary or {},
             "lineage": lineage,
+            "service_tracking": self._p3_json_safe(self._service_tracking_summary()),
             "failed_identities": failed,
             "hook_counts": hook_counts,
             "evidence_dropped": dropped,
@@ -4823,6 +4826,7 @@ class FridaMuncher(Auxiliary):
         )
 
         while not self.stop_event.is_set():
+            self._reconcile_service_lineage()
             for proc in psutil.process_iter(["pid", "ppid", "name"]):
                 try:
                     pid = int(proc.info["pid"])
@@ -4852,6 +4856,15 @@ class FridaMuncher(Auxiliary):
                     ):
                         continue
 
+                    with self.session_lock:
+                        service_parent = self.lineage.get(ppid, {}).get("role") in {
+                            "service_process", "service_descendant"
+                        }
+                    # Service families use the GUID-bound Sysmon graph. Polling
+                    # can observe a child before EID1 arrives; do not race that
+                    # graph with a weaker PID-only enrollment or a second worker.
+                    if service_parent:
+                        continue
                     if not self._lineage_contains_parent(ppid, create_time):
                         continue
 
@@ -5092,6 +5105,7 @@ class FridaMuncher(Auxiliary):
             }
             self.frida_injector_prewarm_ready.set()
         self._start_sysmon_bridge()
+        self._start_service_tracking()
 
         log.info(
             "[FridaMuncher] %s config: run_id=%s profile=%s target=%s "
@@ -5319,6 +5333,7 @@ class FridaMuncher(Auxiliary):
         else:
             self.sysmon_final_drain["status"] = "not_available"
         self.sysmon_bridge_active = False
+        self._stop_service_tracking()
 
         with self.session_lock:
             excluded_summary = {}

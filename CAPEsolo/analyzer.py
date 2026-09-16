@@ -722,6 +722,18 @@ class Analyzer:
 
         return True
 
+    def _has_live_related_processes(self, aux_modules):
+        for aux in aux_modules:
+            probe = getattr(aux, "has_live_related_processes", None)
+            if probe is None:
+                continue
+            try:
+                if probe():
+                    return True
+            except Exception:
+                log.exception("Related process lifetime probe failed")
+        return False
+
     def analysis_loop(self, aux_modules):
         global ANALYSIS_TIMED_OUT
         time_start = timeit.default_timer()
@@ -776,7 +788,7 @@ class Analyzer:
 
                         # If none of the monitored processes are still alive, we
                         # can terminate the analysis.
-                        if not self.process_list.pids and (
+                        if not self.process_list.pids and not self._has_live_related_processes(aux_modules) and (
                             not self.LASTINJECT_TIME or (timeit.default_timer() >= (self.LASTINJECT_TIME + 15))  # Add 15 seconds
                         ):
                             if emptytime and (timeit.default_timer() >= (emptytime + 5)):  # Add 5 seconds
@@ -1115,6 +1127,8 @@ class CommandPipeHandler:
         pid = int(data)
         if pid not in self.analyzer.process_list.pids:
             self.analyzer.process_list.add_pid(pid)  # , track=int(track))
+        if pid == self.analyzer.SERVICES_PID:
+            self.analyzer.MONITORED_SERVICES = True
         if pid in INJECT_LIST:
             INJECT_LIST.remove(pid)
         self.analyzer.process_lock.release()
@@ -1295,10 +1309,14 @@ class CommandPipeHandler:
         can monitor the service more easily with less noise.
         """
         if not ANALYSIS_TIMED_OUT:
+            # P32320 observes service creation via Security/Sysmon and instruments
+            # only the correlated binary. Legacy SCM mutation is explicitly opt-in.
+            legacy = str(self.analyzer.options.get("p3_legacy_service_monitor", "0")).lower() in {"1", "true", "yes"}
+            if not legacy:
+                log.info('Announced starting service "%s"; using evidence-bound P32320 service tracking', servname)
+                return
             si = subprocess.STARTUPINFO()
-            # STARTF_USESHOWWINDOW
             si.dwFlags = 1
-            # SW_HIDE
             si.wShowWindow = 0
             subprocess.call(f"sc config {servname.decode()} type= own", startupinfo=si)
             log.info('Announced starting service "%s"', servname)
@@ -1314,7 +1332,7 @@ class CommandPipeHandler:
                     self.analyzer.LASTINJECT_TIME = timeit.default_timer()
                     servproc.close()
                     KERNEL32.Sleep(2000)
-                    self.analyzer.MONITORED_SERVICES = True
+                    # Only _handle_loaded may confirm MONITORED_SERVICES.
                 else:
                     log.error("Unable to monitor service %s", servname)
 

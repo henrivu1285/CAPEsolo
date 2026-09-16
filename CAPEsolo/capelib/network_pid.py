@@ -83,7 +83,7 @@ def load_network_evidence(analysis_dir, runtime=None):
             for item in services.get("links", []):
                 key = str(item["process_id"])
                 if key not in lineage and item["process_id"] not in lineage:
-                    lineage[key] = {"role": "service_process", "exe": item["image"],
+                    lineage[key] = {"role": item.get("role", "service_process"), "exe": item["image"],
                                     "sysmon_guid": item["process_guid"], "creator_pid": item["creator_pid"],
                                     "ppid": item["parent_pid"], "evidence_source": "service_processes.json"}
     return events, lineage
@@ -209,7 +209,7 @@ def _process_meta(event, lineage):
     # ProcessGuid is the PID-reuse guard. A known mismatch invalidates the event
     # for this analysis lineage instead of silently assigning it to a reused PID.
     tracked = bool(meta) and not (event_guid and known_guid and event_guid != known_guid)
-    if meta.get("role") == "service_process":
+    if meta.get("role") in {"service_process", "service_descendant"}:
         tracked = tracked and bool(event_guid and event_guid == known_guid)
     return {
         "pid": pid or None,

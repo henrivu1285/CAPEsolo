@@ -773,7 +773,7 @@ class Process:
                     config.write(f"{optname}={option}\n")
                     log.info("Option '%s' with value '%s' sent to monitor", optname, option)
 
-    def inject(self, interest=None, nosleepskip=False):
+    def inject(self, interest=None, nosleepskip=False, loader_timeout=None):
         """Cuckoo DLL injection.
         @param interest: path to file of interest, handed to cuckoomon config
         @param nosleepskip: skip sleep or not
@@ -829,7 +829,7 @@ class Process:
         log.info("%s DLL to inject is %s, loader %s", bit_str, dll, bin_name)
 
         try:
-            ret = subprocess.run([bin_name, "inject", str(self.pid), str(thread_id), dll])
+            ret = subprocess.run([bin_name, "inject", str(self.pid), str(thread_id), dll], timeout=loader_timeout)
 
             if ret.returncode == 1:
                 log.info("Injected into %s %s", bit_str, self)
@@ -840,7 +840,9 @@ class Process:
             return False
 
         if not ttd:
-            return True
+            # The legacy loader uses 1 for acceptance. Neither exit 0 nor an
+            # error proves that the monitor loaded. LOADED/readiness is separate.
+            return ret.returncode == 1
 
         try:
             result = subprocess.run(

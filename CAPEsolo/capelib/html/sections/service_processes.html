@@ -2,9 +2,9 @@
 {% if services %}
 <section class="card mt-4 mb-4" id="service-processes">
 <div class="card-header"><h5>Service process evidence · {{ services.status }}</h5></div>
-<div class="card-body"><p>{{ services.interpretation }}</p>
-{% if services.links %}<div class="table-responsive"><table class="table"><thead><tr><th>Service</th><th>Creator PID</th><th>Process</th><th>OS parent</th><th>SCM state</th><th>API coverage</th><th>DLL evidence</th></tr></thead><tbody>
-{% for p in services.links %}<tr><td>{{ p.service_name }}</td><td>{{ p.creator_pid }}</td><td>{{ p.process_id }} · {{ p.image }}</td><td>{{ p.parent_pid }} · {{ p.parent_image }}</td><td>{{ p.service_state }}</td><td>{{ p.api_coverage }}</td><td>{{ p.dll_load_coverage }}</td></tr>{% endfor %}
+<div class="card-body"><p>{{ services.interpretation }}</p><p>EVTX: {{ services.evtx_status | default("unknown") }} · Recovery: {{ services.evtx_recovery | default("not_needed") }}</p>
+{% if services.links %}<div class="table-responsive"><table class="table"><thead><tr><th>Service</th><th>Creator PID</th><th>Process / relationship</th><th>OS parent</th><th>SCM state</th><th>API coverage</th><th>DLL evidence</th></tr></thead><tbody>
+{% for p in services.links %}<tr><td>{{ p.service_name }}</td><td>{{ p.creator_pid }}</td><td>{{ p.process_id }} · {{ p.image }}<br>{{ p.role }}</td><td>{{ p.parent_pid }} · {{ p.parent_image }}</td><td>{{ p.service_state }}</td><td>{{ p.api_coverage }}</td><td>{{ p.dll_load_coverage }}</td></tr>{% endfor %}
 </tbody></table></div>
 {% for p in services.links %}<details><summary>{{ p.service_name }} · PID {{ p.process_id }} evidence</summary><p>Process GUID: {{ p.process_guid }} · Created: {{ p.process_created_utc }}</p><ul>{% for e in p.evidence %}<li>{{ e.channel | default(e.source) }} · {{ e.record_id | default(e.call_id) }} · {{ e.utc_time | default('') }}</li>{% endfor %}</ul><ul>{% for e in p.loaded_images %}<li>{{ e.image_loaded }} · {{ e.record_id }} · {{ e.utc_time }}</li>{% endfor %}</ul></details>{% endfor %}
 {% endif %}

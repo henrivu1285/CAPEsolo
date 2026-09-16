@@ -62,7 +62,7 @@ def collect_exports(channels, output, run_id=None, startupinfo=None, runner=subp
     Native tools are called with argument lists, shell=False, and finite timeouts.
     """
     output = Path(output); output.mkdir(parents=True, exist_ok=True)
-    manifest = {'schema': 'capesolo-evtx-export/1', 'revision': 'p32319-fix1', 'run_id': run_id,
+    manifest = {'schema': 'capesolo-evtx-export/1', 'revision': 'p32320', 'run_id': run_id,
                 'method': 'wevtutil_epl', 'started_utc': datetime.now(timezone.utc).isoformat(),
                 'channels': [], 'events_limit': max_events}
     events = output/'evtx_events.jsonl'; count = 0; exported = []
